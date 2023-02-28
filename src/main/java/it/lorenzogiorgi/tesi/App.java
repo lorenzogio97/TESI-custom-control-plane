@@ -93,7 +93,7 @@ public class App{
             System.out.println("Menu");
             System.out.println("1- redirect a user to a new edge proxy");
             System.out.println("2- delete redirect on the old proxy");
-            System.out.println("2-exit");
+            System.out.println("3-exit");
             Scanner scanner = new Scanner(System.in);
             int command = Integer.parseInt(scanner.nextLine());
             switch (command) {
