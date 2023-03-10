@@ -1,20 +1,26 @@
-package it.lorenzogiorgi.tesi.beans;
+package it.lorenzogiorgi.tesi.dns;
 
 import java.util.List;
 
 public class RRset {
-    String name;
-    String type;
-    int ttl;
-    String changetype;
-    List<Record> records;
+    private String name;
+    private String type;
+    private int ttl;
+    private String changetype;
+    private List<Record> records;
+    private List<Comment> comments;
 
-    public RRset(String name, String type, int ttl, String changetype, List<Record> records) {
+    public RRset(String name, String type, int ttl, String changetype, List<Record> records, List<Comment> comments) {
         this.name = name;
         this.type = type;
         this.ttl = ttl;
         this.changetype = changetype;
         this.records = records;
+        this.comments=comments;
+    }
+
+    public RRset(String name, String type, int ttl, String changetype, List<Record> records) {
+        this(name,type, ttl, changetype, records,null);
     }
 
     public String getName() {
@@ -55,5 +61,13 @@ public class RRset {
 
     public void setRecords(List<Record> records) {
         this.records = records;
+    }
+
+    public List<Comment> getComments() {
+        return comments;
+    }
+
+    public void setComments(List<Comment> comments) {
+        this.comments = comments;
     }
 }

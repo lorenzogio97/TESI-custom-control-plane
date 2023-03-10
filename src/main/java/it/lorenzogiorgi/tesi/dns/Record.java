@@ -1,8 +1,8 @@
-package it.lorenzogiorgi.tesi.beans;
+package it.lorenzogiorgi.tesi.dns;
 
 public class Record {
-    String content;
-    boolean disabled;
+    private String content;
+    private boolean disabled;
 
     public Record(String content, boolean disabled) {
         this.content = content;
