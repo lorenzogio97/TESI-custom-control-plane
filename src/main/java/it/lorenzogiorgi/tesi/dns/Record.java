@@ -1,5 +1,8 @@
 package it.lorenzogiorgi.tesi.dns;
 
+/**
+ * Object that represent a PowerDNS record
+ */
 public class Record {
     private String content;
     private boolean disabled;

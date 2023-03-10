@@ -1,5 +1,8 @@
 package it.lorenzogiorgi.tesi.dns;
 
+/**
+ * Object that represent a PowerDNS comment
+ */
 public class Comment {
     private String content;
     private String account;

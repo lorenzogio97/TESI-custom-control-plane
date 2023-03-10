@@ -2,6 +2,9 @@ package it.lorenzogiorgi.tesi.dns;
 
 import java.util.List;
 
+/**
+ * Object that represent a PowerDNS RRSet
+ */
 public class RRset {
     private String name;
     private String type;

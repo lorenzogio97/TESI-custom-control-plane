@@ -2,6 +2,9 @@ package it.lorenzogiorgi.tesi.dns;
 
 import java.util.List;
 
+/**
+ * Object that represent a PowerDNS Zone
+ */
 public class Zone {
     private String id;
     private String name;
