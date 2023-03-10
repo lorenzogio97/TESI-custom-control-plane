@@ -1,0 +1,6 @@
+{
+  "DNS_API_IP": "192.168.1.54",
+  "DNS_API_PORT": 8081,
+  "DNS_API_SERVER_ID": "localhost",
+  "DNS_API_KEY": "powerdns"
+}
