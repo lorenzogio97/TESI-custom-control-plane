@@ -23,21 +23,19 @@ import io.envoyproxy.envoy.type.matcher.v3.StringMatcher;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.netty.NettyServerBuilder;
+import it.lorenzogiorgi.tesi.dns.DNSUpdate;
+import it.lorenzogiorgi.tesi.envoy.EnvoyConfigurationServer;
 
 import java.io.IOException;
-import java.util.Scanner;
+import java.util.*;
 
-public class App{
-
-    private static final String GROUP = "key";
-    private static SimpleCache<String> cache;
-    /**
-     * Example minimal xDS implementation using the java-control-plane lib. This example configures a
-     * DiscoveryServer with a v3 cache, and handles only v3 requests from data planes.
-     *
-     * @param arg command-line args
-     */
+public class Orchestrator {
+    static SimpleCache<String> cache;
+    public static EnvoyConfigurationServer envoyConfigurationServer;
     public static void main(String[] arg) throws IOException, InterruptedException {
+        //Spark.get("/hello", (req, res) -> "Hello World");
+        //envoyConfigurationServer = new EnvoyConfigurationServer(19000);
+        System.out.println(DNSUpdate.updateDNSRecord("lorenzogiorgi.com", "edge5.lorenzogiorgi.com", "A", 20, "192.168.1.4"));
 
         // la lamda server per definire come ottenere il node-group dal node id,  in pratica è il criterio per
         // creare il group identifier che condivide la configurazione.
@@ -69,12 +67,13 @@ public class App{
                         "1"));
 
 
+        System.out.println(cache.getSnapshot("edge2").clusters().resources());
+
 
         V3DiscoveryServer v3DiscoveryServer = new V3DiscoveryServer(cache);
 
         ServerBuilder builder =
                 NettyServerBuilder.forPort(18000)
-                        //.addService(v3DiscoveryServer.getAggregatedDiscoveryServiceImpl())
                         .addService(v3DiscoveryServer.getClusterDiscoveryServiceImpl())
                         .addService(v3DiscoveryServer.getEndpointDiscoveryServiceImpl())
                         .addService(v3DiscoveryServer.getListenerDiscoveryServiceImpl())
