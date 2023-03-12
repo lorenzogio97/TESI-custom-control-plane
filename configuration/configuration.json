@@ -2,5 +2,28 @@
   "DNS_API_IP": "192.168.1.54",
   "DNS_API_PORT": 8081,
   "DNS_API_SERVER_ID": "localhost",
-  "DNS_API_KEY": "powerdns"
+  "DNS_API_KEY": "powerdns",
+  "users": [{
+    "username": "lorenzo",
+    "password": "lorenzo",
+    "services": [{
+      "imageName": "hashicorp/http-echo",
+      "endpointMapping": "/service/http-echo",
+      "maxCPU": 1,
+      "maxMemory": 512
+    },
+    {
+      "imageName": "hashicorp/http-echo",
+      "endpointMapping": "/service/http-echo2",
+      "maxCPU": 1,
+      "maxMemory": 512
+    }]
+  }],
+  "envoyProxies": [{
+    "ipAddress": "172.16.1.4",
+    "id": "edge1"
+  }, {
+    "ipAddress": "172.16.2.4",
+    "id": "edge2"
+  }]
 }

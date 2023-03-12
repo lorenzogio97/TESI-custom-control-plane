@@ -9,6 +9,7 @@ import java.lang.reflect.Modifier;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.List;
 
 /**
  * Class that contains the configuration of the application. The configuration is read from
@@ -24,7 +25,20 @@ public class Configuration {
     public static String DNS_API_SERVER_ID;
     public static String DNS_API_KEY;
 
+    /**
+     * Sample user data
+     */
+    public static List<User> users;
 
+    /**
+     * Envoy proxies information
+     */
+    public static List<EnvoyProxy> envoyProxies;
+
+
+    /**
+     * Load configuration from file
+     */
     static {
         byte[] encoded;
         try {
@@ -37,7 +51,6 @@ public class Configuration {
         gsonBuilder.excludeFieldsWithModifiers(Modifier.TRANSIENT);
         Gson gson = gsonBuilder.create();
         gson.fromJson(jsonString, Configuration.class);
-
     }
 
 }
