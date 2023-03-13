@@ -19,11 +19,25 @@
       "maxMemory": 512
     }]
   }],
-  "envoyProxies": [{
-    "ipAddress": "172.16.1.4",
-    "id": "edge1"
-  }, {
-    "ipAddress": "172.16.2.4",
-    "id": "edge2"
-  }]
+  "mecNodes": [{
+    "frontProxy": {
+      "ipAddress": "172.16.1.4",
+      "id": "edge1"
+    },
+    "ipAddress": "127.0.0.1",
+    "totalMemory": 1024,
+    "totalCPU": 3,
+    "MECId": "edge1"
+},
+    {
+      "frontProxy": {
+        "ipAddress": "172.16.2.4",
+        "id": "edge2"
+      },
+      "ipAddress": "127.0.0.1",
+      "totalMemory": 1024,
+      "totalCPU": 3,
+      "MECId": "edge2"
+    }
+  ]
 }

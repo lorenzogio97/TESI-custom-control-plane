@@ -33,7 +33,7 @@ public class Configuration {
     /**
      * Envoy proxies information
      */
-    public static List<EnvoyProxy> envoyProxies;
+    public static List<MECNode> mecNodes;
 
 
     /**
