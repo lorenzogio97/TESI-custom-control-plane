@@ -7,14 +7,20 @@
     "username": "lorenzo",
     "password": "lorenzo",
     "services": [{
-      "imageName": "hashicorp/http-echo",
+      "name": "echo",
+      "imageName": "strm/helloworld-http",
+      "imageTag": "latest",
       "endpointMapping": "/service/http-echo",
+      "exposedPort": 80,
       "maxCPU": 1,
       "maxMemory": 512
     },
     {
-      "imageName": "hashicorp/http-echo",
+      "name": "echo2",
+      "imageName": "strm/helloworld-http",
+      "imageTag": "latest",
       "endpointMapping": "/service/http-echo2",
+      "exposedPort": 80,
       "maxCPU": 1,
       "maxMemory": 512
     }]
@@ -24,7 +30,8 @@
       "ipAddress": "172.16.1.4",
       "id": "edge1"
     },
-    "ipAddress": "127.0.0.1",
+    "dockerIpAddress": "127.0.0.1",
+    "dockerPort": 2375,
     "totalMemory": 1024,
     "totalCPU": 3,
     "MECId": "edge1"
@@ -34,7 +41,8 @@
         "ipAddress": "172.16.2.4",
         "id": "edge2"
       },
-      "ipAddress": "127.0.0.1",
+      "dockerIpAddress": "127.0.0.1",
+      "dockerPort": 2375,
       "totalMemory": 1024,
       "totalCPU": 3,
       "MECId": "edge2"

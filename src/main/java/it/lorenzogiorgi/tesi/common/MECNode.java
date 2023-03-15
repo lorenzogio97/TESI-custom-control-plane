@@ -2,11 +2,12 @@ package it.lorenzogiorgi.tesi.common;
 
 public class MECNode {
     private EnvoyProxy frontProxy;
-    private String ipAddress;
-    private float availableMemory;
-    private float totalMemory;
-    private float availableCPU;
-    private float totalCPU;
+    private String dockerIpAddress;
+    private int dockerPort;
+    private double availableMemory;
+    private double totalMemory;
+    private double availableCPU;
+    private double totalCPU;
     private String MECId;
 
     public EnvoyProxy getFrontProxy() {
@@ -17,43 +18,43 @@ public class MECNode {
         this.frontProxy = frontProxy;
     }
 
-    public String getIpAddress() {
-        return ipAddress;
+    public String getDockerIpAddress() {
+        return dockerIpAddress;
     }
 
-    public void setIpAddress(String ipAddress) {
-        this.ipAddress = ipAddress;
+    public void setDockerIpAddress(String dockerIpAddress) {
+        this.dockerIpAddress = dockerIpAddress;
     }
 
-    public float getAvailableMemory() {
+    public double getAvailableMemory() {
         return availableMemory;
     }
 
-    public void setAvailableMemory(float availableMemory) {
+    public void setAvailableMemory(double availableMemory) {
         this.availableMemory = availableMemory;
     }
 
-    public float getTotalMemory() {
+    public double getTotalMemory() {
         return totalMemory;
     }
 
-    public void setTotalMemory(float totalMemory) {
+    public void setTotalMemory(double totalMemory) {
         this.totalMemory = totalMemory;
     }
 
-    public float getAvailableCPU() {
+    public double getAvailableCPU() {
         return availableCPU;
     }
 
-    public void setAvailableCPU(float availableCPU) {
+    public void setAvailableCPU(double availableCPU) {
         this.availableCPU = availableCPU;
     }
 
-    public float getTotalCPU() {
+    public double getTotalCPU() {
         return totalCPU;
     }
 
-    public void setTotalCPU(float totalCPU) {
+    public void setTotalCPU(double totalCPU) {
         this.totalCPU = totalCPU;
     }
 
@@ -65,11 +66,19 @@ public class MECNode {
         this.MECId = MECId;
     }
 
+    public int getDockerPort() {
+        return dockerPort;
+    }
+
+    public void setDockerPort(int dockerPort) {
+        this.dockerPort = dockerPort;
+    }
+
     @Override
     public String toString() {
         return "MECNode{" +
                 "frontProxy=" + frontProxy +
-                ", ipAddress='" + ipAddress + '\'' +
+                ", ipAddress='" + dockerIpAddress + '\'' +
                 ", availableMemory=" + availableMemory +
                 ", totalMemory=" + totalMemory +
                 ", availableCPU=" + availableCPU +

@@ -1,10 +1,21 @@
 package it.lorenzogiorgi.tesi.common;
 
 public class Service {
+    private String name;
     private String imageName;
+    private String imageTag;
     private String endpointMapping;
-    private float maxCPU;
-    private float maxMemory;
+    private int exposedPort;
+    private double maxCPU;
+    private double maxMemory;
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
 
     public String getImageName() {
         return imageName;
@@ -22,20 +33,36 @@ public class Service {
         this.endpointMapping = endpointMapping;
     }
 
-    public float getMaxCPU() {
+    public double getMaxCPU() {
         return maxCPU;
     }
 
-    public void setMaxCPU(float maxCPU) {
+    public void setMaxCPU(double maxCPU) {
         this.maxCPU = maxCPU;
     }
 
-    public float getMaxMemory() {
+    public double getMaxMemory() {
         return maxMemory;
     }
 
-    public void setMaxMemory(float maxMemory) {
+    public void setMaxMemory(double maxMemory) {
         this.maxMemory = maxMemory;
+    }
+
+    public String getImageTag() {
+        return imageTag;
+    }
+
+    public void setImageTag(String imageTag) {
+        this.imageTag = imageTag;
+    }
+
+    public int getExposedPort() {
+        return exposedPort;
+    }
+
+    public void setExposedPort(int exposedPort) {
+        this.exposedPort = exposedPort;
     }
 
     @Override
