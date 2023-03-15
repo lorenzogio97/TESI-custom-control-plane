@@ -53,20 +53,23 @@ public class EnvoyConfigurationServer {
             throw new RuntimeException(e);
         }
 
+        //inizialize proxy snapshots
         for (MECNode mecNode:Configuration.mecNodes) {
-            System.out.println(mecNode);
-            System.out.println(mecNode.getFrontProxy().getId()+"-"+ mecNode.getFrontProxy().getIpAddress());
             proxiesSnapshot.put(mecNode.getFrontProxy().getId(), new SnapshotInstance());
         }
 
-        test();
+        //test();
 
     }
 
+
     public void test() {
-        addListenerToProxy("edge1", "default", "0.0.0.0", 80);
-        addRedirectToProxy("edge1", "*lorenzogiorgi.com", "default", "/service1", "1000", "edge2.lorenzogiorgi.com", 8080);
-        addRedirectToProxy("edge1", "*lorenzogiorgi.com", "default", "/service2", "1000", "edge3.lorenzogiorgi.com", 8080);
+        //addListenerToProxy("edge1", "default", "0.0.0.0", 80);
+        //addRedirectToProxy("edge1", "*lorenzogiorgi.com", "default", "/service1", "1000", "edge2.lorenzogiorgi.com", 8080);
+        //addRedirectToProxy("edge1", "*lorenzogiorgi.com", "default", "/service2", "1000", "edge3.lorenzogiorgi.com", 8080);
+        //addClusterToProxy("edge1", "echo", "172.17.0.2", 80);
+        //addClusterToProxy("edge2", "echo", "172.17.0.2", 80);
+
     }
 
     public void awaitTermination() {
@@ -79,7 +82,7 @@ public class EnvoyConfigurationServer {
     private void updateProxyCacheSnapshot(String proxyId) {
         globalCache.setSnapshot(proxyId, proxiesSnapshot.get(proxyId).getLastSnapshot());
     }
-    private boolean addListenerToProxy(String proxyId, String routeConfigName, String bindIPAddress, int bindPort) {
+    public boolean addListenerToProxy(String proxyId, String routeConfigName, String bindIPAddress, int bindPort) {
         ConfigSource.Builder configSourceBuilder = ConfigSource.newBuilder().setResourceApiVersion(ApiVersion.V3);
 
         ConfigSource rdsSource = configSourceBuilder
@@ -128,6 +131,7 @@ public class EnvoyConfigurationServer {
                 .build();
 
         boolean result = proxiesSnapshot.get(proxyId).addResource(newListener);
+        System.out.println("RESULT ADD LISTENER "+ result);
         if(!result) return false;
         updateProxyCacheSnapshot(proxyId);
         return true;
@@ -142,9 +146,12 @@ public class EnvoyConfigurationServer {
                 .setName(userCookie+"-"+prefix)// sfruttare per l'eliminazione
                 .setMatch(
                         RouteMatch.newBuilder()
-                                .setPrefix(prefix)
+                                .setPathSeparatedPrefix(prefix)
                                 .addHeaders(HeaderMatcher.newBuilder().setName("cookie").setStringMatch(StringMatcher.newBuilder().setContains("authID="+userCookie))))
-                .setRoute(RouteAction.newBuilder().setCluster(destinationCluster));
+                .setRoute(
+                        RouteAction.newBuilder()
+                                .setPrefixRewrite("/")
+                                .setCluster(destinationCluster));
 
 
         RouteConfiguration routeConfiguration =  RouteConfiguration.newBuilder()
@@ -158,6 +165,7 @@ public class EnvoyConfigurationServer {
                 .build();
 
         boolean result = proxiesSnapshot.get(proxyId).addResource(routeConfiguration);
+        System.out.println("RESULT ADD ROUTE "+ result);
         if(!result) return false;
         updateProxyCacheSnapshot(proxyId);
         return true;
@@ -178,7 +186,7 @@ public class EnvoyConfigurationServer {
                                                 .setName(userCookie+"-"+prefix)
                                                 .setMatch(
                                                         RouteMatch.newBuilder()
-                                                                .setPrefix(prefix)
+                                                                .setPathSeparatedPrefix(prefix)
                                                                 .addHeaders(HeaderMatcher.newBuilder().setName("cookie").setStringMatch(StringMatcher.newBuilder().setContains("authID="+userCookie))))
                                                 .setRedirect(RedirectAction.newBuilder().setHostRedirect(destinationHost).setPortRedirect(destinationPort))
 
@@ -187,6 +195,7 @@ public class EnvoyConfigurationServer {
                 .build();
 
         boolean result = proxiesSnapshot.get(proxyId).addResource(routeConfiguration);
+        System.out.println("RESULT ADD REDIRECT ROUTE "+ result);
         if(!result) return false;
         updateProxyCacheSnapshot(proxyId);
         return true;
@@ -217,6 +226,7 @@ public class EnvoyConfigurationServer {
                 .build();
 
         boolean result = proxiesSnapshot.get(proxyId).addResource(newCluster);
+        System.out.println("RESULT ADD CLUSTER "+ result);
         if(!result) return false;
         updateProxyCacheSnapshot(proxyId);
         return true;
