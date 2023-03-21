@@ -2,13 +2,16 @@ package it.lorenzogiorgi.tesi.common;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.reflect.TypeToken;
 
 
 import java.io.IOException;
 import java.lang.reflect.Modifier;
+import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -36,8 +39,8 @@ public class Configuration {
     public static List<MECNode> mecNodes;
 
 
-    /**
-     * Load configuration from file
+    /*
+      Load configuration from file
      */
     static {
         byte[] encoded;
@@ -51,6 +54,24 @@ public class Configuration {
         gsonBuilder.excludeFieldsWithModifiers(Modifier.TRANSIENT);
         Gson gson = gsonBuilder.create();
         gson.fromJson(jsonString, Configuration.class);
+        loadUsers();
     }
 
+    /**
+     * separate load function for User. This allows the possibility to modify data source for user in the future.
+     */
+    public static void loadUsers() {
+        byte[] encoded;
+        try {
+            encoded = Files.readAllBytes(Paths.get("./configuration/userList.json"));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        String jsonString = new String(encoded, StandardCharsets.UTF_8);
+        Type listOfMyClassObject = new TypeToken<ArrayList<User>>() {}.getType();
+        GsonBuilder gsonBuilder = new GsonBuilder();
+        gsonBuilder.excludeFieldsWithModifiers(Modifier.TRANSIENT);
+        Gson gson = gsonBuilder.create();
+        users = gson.fromJson(jsonString, listOfMyClassObject);
+    }
 }

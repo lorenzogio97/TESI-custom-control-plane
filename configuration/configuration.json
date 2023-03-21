@@ -3,39 +3,18 @@
   "DNS_API_PORT": 8081,
   "DNS_API_SERVER_ID": "localhost",
   "DNS_API_KEY": "powerdns",
-  "users": [{
-    "username": "lorenzo",
-    "password": "lorenzo",
-    "services": [{
-      "name": "echo",
-      "imageName": "strm/helloworld-http",
-      "imageTag": "latest",
-      "endpointMapping": "/service/http-echo",
-      "exposedPort": 80,
-      "maxCPU": 1,
-      "maxMemory": 512
-    },
+  "mecNodes": [
     {
-      "name": "echo2",
-      "imageName": "strm/helloworld-http",
-      "imageTag": "latest",
-      "endpointMapping": "/service/http-echo2",
-      "exposedPort": 80,
-      "maxCPU": 1,
-      "maxMemory": 512
-    }]
-  }],
-  "mecNodes": [{
-    "frontProxy": {
-      "ipAddress": "172.16.1.4",
-      "id": "edge1"
+      "frontProxy": {
+        "ipAddress": "172.16.1.4",
+        "id": "edge1"
+      },
+      "dockerIpAddress": "127.0.0.1",
+      "dockerPort": 2375,
+      "totalMemory": 1024,
+      "totalCPU": 3,
+      "MECId": "edge1"
     },
-    "dockerIpAddress": "127.0.0.1",
-    "dockerPort": 2375,
-    "totalMemory": 1024,
-    "totalCPU": 3,
-    "MECId": "edge1"
-},
     {
       "frontProxy": {
         "ipAddress": "172.16.2.4",
