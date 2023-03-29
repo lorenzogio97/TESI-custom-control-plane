@@ -251,8 +251,18 @@ public class EnvoyConfigurationServer {
         return true;
     }
 
-    public void convertRouteToRedirect(String user, String sourceProxyId, String destinationProxyId) {
-        proxiesSnapshot.get(sourceProxyId).redirectProxyRoutesByUser(user, destinationProxyId);
+    public void convertRouteToRedirect(String username, String sourceProxyId, String destinationProxyId) {
+        SnapshotInstance snapshotInstance = proxiesSnapshot.get(sourceProxyId);
+        snapshotInstance.redirectProxyRoutesByUser(username, destinationProxyId);
+        snapshotInstance.deleteClustersByUser(username);
         updateProxyCacheSnapshot(sourceProxyId);
     }
+
+    public void deleteAllUserResourcesFromProxy(String username, String proxyId) {
+        SnapshotInstance snapshotInstance = proxiesSnapshot.get(proxyId);
+        snapshotInstance.deleteRoutesByUser(username);
+        snapshotInstance.deleteClustersByUser(username);
+        updateProxyCacheSnapshot(proxyId);
+    }
+
 }
