@@ -1,311 +1,184 @@
 package it.lorenzogiorgi.tesi;
 
-import com.google.common.collect.ImmutableList;
-import com.google.protobuf.Any;
-import com.google.protobuf.util.Durations;
-import io.envoyproxy.controlplane.cache.v3.SimpleCache;
-import io.envoyproxy.controlplane.cache.v3.Snapshot;
-import io.envoyproxy.controlplane.server.V3DiscoveryServer;
-import io.envoyproxy.envoy.config.cluster.v3.Cluster;
-import io.envoyproxy.envoy.config.core.v3.*;
-import io.envoyproxy.envoy.config.endpoint.v3.ClusterLoadAssignment;
-import io.envoyproxy.envoy.config.endpoint.v3.Endpoint;
-import io.envoyproxy.envoy.config.endpoint.v3.LbEndpoint;
-import io.envoyproxy.envoy.config.endpoint.v3.LocalityLbEndpoints;
-import io.envoyproxy.envoy.config.listener.v3.Filter;
-import io.envoyproxy.envoy.config.listener.v3.FilterChain;
-import io.envoyproxy.envoy.config.listener.v3.Listener;
-import io.envoyproxy.envoy.config.route.v3.*;
-import io.envoyproxy.envoy.extensions.filters.http.router.v3.Router;
-import io.envoyproxy.envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager;
-
-import io.envoyproxy.envoy.type.matcher.v3.StringMatcher;
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
-import io.grpc.netty.NettyServerBuilder;
-import it.lorenzogiorgi.tesi.dns.DNSUpdate;
+import com.github.dockerjava.api.DockerClient;
+import com.github.dockerjava.api.command.CreateContainerResponse;
+import com.github.dockerjava.api.command.InspectContainerResponse;
+import com.github.dockerjava.api.command.PullImageResultCallback;
+import com.github.dockerjava.api.model.HostConfig;
+import com.github.dockerjava.core.DefaultDockerClientConfig;
+import com.github.dockerjava.core.DockerClientConfig;
+import com.github.dockerjava.core.DockerClientImpl;
+import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
+import com.github.dockerjava.transport.DockerHttpClient;
+import com.google.gson.Gson;
+import it.lorenzogiorgi.tesi.api.LoginRequest;
+import it.lorenzogiorgi.tesi.api.LoginResponse;
+import it.lorenzogiorgi.tesi.common.*;
+import it.lorenzogiorgi.tesi.dns.DNSUpdater;
 import it.lorenzogiorgi.tesi.envoy.EnvoyConfigurationServer;
+import spark.Request;
+import spark.Response;
+import spark.Spark;
 
 import java.io.IOException;
-import java.util.*;
+import java.net.URI;
+import java.time.Duration;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
 
 public class Orchestrator {
-    static SimpleCache<String> cache;
     public static EnvoyConfigurationServer envoyConfigurationServer;
+
+    public static Gson gson;
     public static void main(String[] arg) throws IOException, InterruptedException {
-        //Spark.get("/hello", (req, res) -> "Hello World");
-        //envoyConfigurationServer = new EnvoyConfigurationServer(19000);
-        System.out.println(DNSUpdate.updateDNSRecord("lorenzogiorgi.com", "edge5.lorenzogiorgi.com", "A", 20, "192.168.1.4"));
+        gson = new Gson();
+        envoyConfigurationServer = new EnvoyConfigurationServer(18000);
+        System.out.println(DNSUpdater.updateDNSRecord("lorenzogiorgi.com", "edge5.lorenzogiorgi.com", "A", 20, "192.168.1.4"));
 
-        // la lamda server per definire come ottenere il node-group dal node id,  in pratica è il criterio per
-        // creare il group identifier che condivide la configurazione.
-        cache = new SimpleCache<>(node -> node.getId());
+        Spark.ipAddress("127.0.0.1");
+        Spark.port(8080);
+        Spark.post("/login", ((request, response) -> login(request, response)));
+        Spark.get("/test", ((request, response) -> "TEST"));
 
-        Listener listener1 = createListener("listener1", "route1", "0.0.0.0", 8080);
-        Listener listener2 = createListener("listener1", "route1", "0.0.0.0", 8080);
-        RouteConfiguration route = createRoute("route1","/service/1","1000", "service1");
-        Cluster cluster = createCluster("service1", "service1", 8000);
-
-        cache.setSnapshot(
-                "edge1",
-                Snapshot.create(
-                        ImmutableList.of(cluster),
-                        ImmutableList.of(),
-                        ImmutableList.of(listener1),
-                        ImmutableList.of(route),
-                        ImmutableList.of(),
-                        "1"));
-
-        cache.setSnapshot(
-                "edge2",
-                Snapshot.create(
-                        ImmutableList.of(cluster),
-                        ImmutableList.of(),
-                        ImmutableList.of(listener2),
-                        ImmutableList.of(),
-                        ImmutableList.of(),
-                        "1"));
+        envoyConfigurationServer.awaitTermination();
+    }
 
 
-        System.out.println(cache.getSnapshot("edge2").clusters().resources());
+    private static boolean allocateUserResources(String username, String authCookie, String zoneName, String domainName)  {
+        //set a preference order between the MECNode, as the AMS API could do
+        List<MECNode> mecNodeList = new ArrayList<>(Configuration.mecNodes);
+        Collections.shuffle(mecNodeList);
+
+        //get User resource to allocate
+        User user = Configuration.users.stream().filter(u -> u.getUsername().equals(username)).findFirst().get();
+        List<Service> serviceList = user.getServices();
 
 
-        V3DiscoveryServer v3DiscoveryServer = new V3DiscoveryServer(cache);
 
-        ServerBuilder builder =
-                NettyServerBuilder.forPort(18000)
-                        .addService(v3DiscoveryServer.getClusterDiscoveryServiceImpl())
-                        .addService(v3DiscoveryServer.getEndpointDiscoveryServiceImpl())
-                        .addService(v3DiscoveryServer.getListenerDiscoveryServiceImpl())
-                        .addService(v3DiscoveryServer.getRouteDiscoveryServiceImpl());
+        //syncronized block to avoid TOCTOU concurrency problem
+        synchronized (Orchestrator.class) {
+            //compute user requirement
+            double memoryRequirement = serviceList.stream().map(a-> a.getMaxMemory()).reduce((double) 0, (a, b) -> a + b);
+            double cpuRequirement = serviceList.stream().map(a-> a.getMaxCPU()).reduce((double) 0, (a, b) -> a + b);
 
-        Server server = builder.build();
-
-        server.start();
-
-        System.out.println("Server has started on port " + server.getPort());
-
-        Runtime.getRuntime().addShutdownHook(new Thread(server::shutdown));
-
-        boolean end= false;
-        while(!end) {
-            System.out.println("Menu");
-            System.out.println("1- redirect a user to a new edge proxy");
-            System.out.println("2- delete redirect on the old proxy");
-            System.out.println("3-exit");
-            Scanner scanner = new Scanner(System.in);
-            int command = Integer.parseInt(scanner.nextLine());
-            switch (command) {
-                case 1:
-                    execute_migration();
+            //find the best edge that can fit user requirement
+            int edgeNumber=-1;
+            for (int i = 0; i < mecNodeList.size(); i++) {
+                MECNode node = mecNodeList.get(i);
+                if (node.getAvailableCPU() <= cpuRequirement && node.getAvailableMemory() <= memoryRequirement) {
+                    edgeNumber=i;
                     break;
-                case 2:
-                    delete_redirect();
-                    break;
-                case 3:
-                    new Thread(server::shutdown).start();
-                    end= true;
+                }
             }
+            //no MEC are able to satisfy user requirements
+            if(edgeNumber==-1) return false;
+
+            //get the selected MECnode
+            MECNode mecNode = mecNodeList.get(edgeNumber);
+
+            //substract requested resources
+            //mecNode.setAvailableCPU(mecNode.getAvailableCPU()-cpuRequirement);
+            //mecNode.setTotalMemory(mecNode.getAvailableMemory()-memoryRequirement);
+
+            //connect to Docker demon on the target MECNode
+            DockerHttpClient httpClient = new ApacheDockerHttpClient.Builder()
+                    .dockerHost(URI.create("tcp://"+mecNode.getDockerIpAddress()+":"+mecNode.getDockerPort()))
+                    .maxConnections(100)
+                    .connectionTimeout(Duration.ofSeconds(30))
+                    .responseTimeout(Duration.ofSeconds(45))
+                    .build();
+
+
+            DockerClientConfig custom = DefaultDockerClientConfig.createDefaultConfigBuilder()
+                    .withDockerHost("tcp://"+mecNode.getDockerIpAddress()+":"+mecNode.getDockerPort())
+                    .build();
+            DockerClient dockerClient = DockerClientImpl.getInstance(custom, httpClient);
+
+            //pull required images
+            for(Service service:serviceList) {
+                System.out.println("Pulling "+service.getImageName()+" for user "+user.getUsername());
+                dockerClient.pullImageCmd(service.getImageName())
+                        .withTag(service.getImageTag())
+                        .exec(new PullImageResultCallback());
+            }
+
+            //run containers with the options specified
+            for (Service service: serviceList) {
+                System.out.println(service.getMaxMemory());
+                CreateContainerResponse container = dockerClient.createContainerCmd(service.getImageName()+":"+service.getImageTag())
+                        .withName(user.getUsername()+"-"+service.getName())
+                        .withHostName(user.getUsername()+"-"+service.getName())
+                        .withHostConfig(HostConfig.newHostConfig()
+                                .withCpuPeriod(100000L)
+                                .withCpuQuota((long) (service.getMaxCPU()*100000))
+                                .withMemory((long) service.getMaxMemory()*1000*1000))
+                        .exec();
+
+
+                dockerClient.startContainerCmd(container.getId()).exec();
+                //get ip of the created container
+                InspectContainerResponse inspectContainerResponse = dockerClient.inspectContainerCmd(container.getId()).exec();
+                String ip = inspectContainerResponse.getNetworkSettings().getNetworks().get("bridge").getIpAddress();
+
+                //set envoy clusters and routes
+                envoyConfigurationServer.addListenerToProxy(mecNode.getFrontProxy().getId(), "default", "0.0.0.0", 80);
+
+                envoyConfigurationServer.addRouteToProxy(user.getUsername(), mecNode.getFrontProxy().getId(), "lorenzogiorgi.com",
+                        "default", service.getEndpointMapping(), authCookie, service.getName());
+
+                envoyConfigurationServer.addClusterToProxy(user.getUsername(), mecNode.getFrontProxy().getId(), service.getName(), ip, service.getExposedPort());
+
+                //setDNS domain
+                DNSUpdater.updateDNSRecord("lorenzogiorgi.com", domainName, "A",  5, mecNode.getFrontProxy().getIpAddress());
+
+            }
+
+            return true;
+
+
         }
-        //Thread.sleep(100000);
 
-        /*cache.setSnapshot(
-                GROUP,
-                Snapshot.create(
-                        ImmutableList.of(
-                                TestResources.createCluster(
-                                        "cluster1", "127.0.0.1", 1235, Cluster.DiscoveryType.STATIC)),
-                        ImmutableList.of(),
-                        ImmutableList.of(),
-                        ImmutableList.of(),
-                        ImmutableList.of(),
-                        "2"));
-*/
-        server.awaitTermination();
+    }
+    private static String login(Request request, Response response) {
+        String requestBody = request.body();
+        LoginRequest loginRequest = gson.fromJson(requestBody, LoginRequest.class);
+
+        //check username and password
+        List<User> userList = Configuration.users;
+        Optional<User> optionalUser = userList.stream().filter(a -> a.getUsername().equals(loginRequest.getUsername()) &&
+                a.getPassword().equals(loginRequest.getPassword())).findFirst();
+        if(!optionalUser.isPresent()) {
+            response.status(401);
+            response.type("application/json");
+            return gson.toJson(new LoginResponse(false, null));
+        }
+
+        //login successful
+        User user = optionalUser.get();
+
+        //compute authId cookie
+        String authId= "1000";
+
+        //compute domain name for the user
+        String domainName = user.getUsername()+".lorenzogiorgi.com";
+
+        //resource allocation
+        boolean allocated = allocateUserResources(user.getUsername(), authId, "lorenzogiorgi.com",
+                domainName);
+
+        if(!allocated) {
+            response.status(503);
+            response.type("application/json");
+            return gson.toJson(new LoginResponse(false, null));
+        }
+
+        response.status(200);
+        response.type("application/json");
+        response.cookie("authID", authId);
+        return gson.toJson(new LoginResponse(true, domainName));
     }
 
 
-    private static void delete_redirect() {
-        Listener listener1 = createListener("listener1", "route1", "0.0.0.0", 8080);
-        RouteConfiguration routeConfigurationEmpty= createEmptyRouteConfiguration("route1");
-        cache.setSnapshot(
-                "edge1",
-                Snapshot.create(
-                        ImmutableList.of(),
-                        ImmutableList.of(),
-                        ImmutableList.of(listener1),
-                        ImmutableList.of(routeConfigurationEmpty),
-                        ImmutableList.of(),
-                        "3"));
-        System.out.println("Redirect deleted");
-    }
-
-    private static void execute_migration() {
-        Scanner scanner = new Scanner(System.in);
-        System.out.println("Input the index of the migrating user:");
-        int userIndex = Integer.parseInt(scanner.nextLine());
-        System.out.println("Input the destination edge proxy number: ");
-        int edgeNumeber= Integer.parseInt(scanner.nextLine());
-
-        RouteConfiguration routeRedirect = createRedirectRoute("route1","/service/1", "1000", "edge2.lorenzogiorgi.com", 8080);
-        RouteConfiguration route = createRoute("route1","/service/1", "1000", "service1");
-        //SnapshotResources<Cluster> edge1_cluster = cache.getSnapshot("edge1").clusters();
-        //SnapshotResources<Listener> edge1_listeners = cache.getSnapshot("edge1").listeners();
-        //SnapshotResources<Cluster> edge2_cluster = cache.getSnapshot("edge2").clusters();
-        //SnapshotResources<Listener> edge2_listeners = cache.getSnapshot("edge2").listeners();
-        Listener listener1 = createListener("listener1", "route1", "0.0.0.0", 8080);
-        Listener listener2 = createListener("listener1", "route1", "0.0.0.0", 8080);
-        Cluster cluster = createCluster("service1", "service1", 8000);
-
-        cache.setSnapshot(
-                "edge1",
-                Snapshot.create(
-                        ImmutableList.of(),
-                        ImmutableList.of(),
-                        ImmutableList.of(listener1),
-                        ImmutableList.of(routeRedirect),
-                        ImmutableList.of(),
-                        "2"));
-
-        cache.setSnapshot(
-                "edge2",
-                Snapshot.create(
-                        ImmutableList.of(cluster),
-                        ImmutableList.of(),
-                        ImmutableList.of(listener2),
-                        ImmutableList.of(route),
-                        ImmutableList.of(),
-                        "2"));
-
-    }
-    private static Listener createListener(String listenerName, String routeConfigName,  String bindIPAddress, int bindPort) {
-        ConfigSource.Builder configSourceBuilder = ConfigSource.newBuilder().setResourceApiVersion(ApiVersion.V3);
-        //ConfigSource rdsSource = configSourceBuilder
-        //                .setAds(AggregatedConfigSource.getDefaultInstance())
-        //                .setResourceApiVersion(ApiVersion.V3)
-        //                .build();
-
-        ConfigSource rdsSource = configSourceBuilder
-                .setApiConfigSource(
-                        ApiConfigSource.newBuilder()
-                                .setTransportApiVersion(ApiVersion.V3)
-                                .setApiType(ApiConfigSource.ApiType.GRPC)
-                                .addGrpcServices(
-                                        GrpcService.newBuilder()
-                                                .setEnvoyGrpc(
-                                                        GrpcService.EnvoyGrpc.newBuilder()
-                                                                .setClusterName("xds_cluster"))))
-                .build();
-
-        HttpConnectionManager manager =
-                HttpConnectionManager.newBuilder()
-                        .setCodecType(HttpConnectionManager.CodecType.AUTO)
-                        .setStatPrefix("http")
-                        .setRds(
-                                io.envoyproxy.envoy.extensions.filters.network.http_connection_manager.v3.Rds
-                                        .newBuilder()
-                                        .setConfigSource(rdsSource)
-                                        .setRouteConfigName(routeConfigName))
-                        .addHttpFilters(
-                                io.envoyproxy.envoy.extensions.filters.network.http_connection_manager.v3.HttpFilter
-                                        .newBuilder()
-                                        .setName("envoy.filters.http.router")
-                                        .setTypedConfig(Any.pack(Router.newBuilder().build())))
-                        .build();
-
-        return Listener.newBuilder()
-                .setName(listenerName)
-                .setAddress(
-                        Address.newBuilder()
-                                .setSocketAddress(
-                                        SocketAddress.newBuilder()
-                                                .setAddress(bindIPAddress)
-                                                .setPortValue(bindPort)
-                                                .setProtocol(SocketAddress.Protocol.TCP)))
-                .addFilterChains(
-                        FilterChain.newBuilder()
-                                .addFilters(
-                                        Filter.newBuilder()
-                                                .setName("envoy.http_connection_manager")
-                                                .setTypedConfig(Any.pack(manager))))
-                .build();
-    }
-
-
-    public static RouteConfiguration createEmptyRouteConfiguration(String routeName) {
-        return RouteConfiguration.newBuilder()
-                .setName(routeName)
-                .addVirtualHosts(
-                        VirtualHost.newBuilder()
-                                .setName("all")
-                                .addDomains("*")
-                )
-                .build();
-    }
-    public static RouteConfiguration createRoute(String routeName, String prefix, String userCookie, String destinationCluster) {
-        return RouteConfiguration.newBuilder()
-                .setName(routeName)
-                .addVirtualHosts(
-                        VirtualHost.newBuilder()
-                                .setName("all")
-                                .addDomains("*")
-                                .addRoutes(
-                                        Route.newBuilder()
-                                                .setMatch(
-                                                        RouteMatch.newBuilder()
-                                                                .setPrefix(prefix)
-                                                                .addHeaders(HeaderMatcher.newBuilder().setName("cookie").setStringMatch(StringMatcher.newBuilder().setContains("authID="+userCookie))))
-                                                .setRoute(RouteAction.newBuilder().setCluster(destinationCluster))
-
-                                )
-                )
-                .build();
-    }
-
-
-
-    public static RouteConfiguration createRedirectRoute(String routeName, String prefix, String userCookie, String destinationHost, int destinationPort) {
-        return RouteConfiguration.newBuilder()
-                .setName(routeName)
-                .addVirtualHosts(
-                        VirtualHost.newBuilder()
-                                .setName("all")
-                                .addDomains("*")
-                                .addRoutes(
-                                        Route.newBuilder()
-                                                .setMatch(
-                                                        RouteMatch.newBuilder()
-                                                                .setPrefix(prefix)
-                                                                .addHeaders(HeaderMatcher.newBuilder().setName("cookie").setStringMatch(StringMatcher.newBuilder().setContains("authID="+userCookie))))
-                                                .setRedirect(RedirectAction.newBuilder().setHostRedirect(destinationHost).setPortRedirect(destinationPort))
-
-                                )
-                )
-                .build();
-    }
-
-
-    public static Cluster createCluster(String clusterName, String ip, int port) {
-        return Cluster.newBuilder()
-                .setName(clusterName)
-                .setConnectTimeout(Durations.fromSeconds(5))
-                .setType(Cluster.DiscoveryType.STRICT_DNS)
-                .setLoadAssignment(
-                        ClusterLoadAssignment.newBuilder()
-                                .setClusterName(clusterName)
-                                .addEndpoints(
-                                        LocalityLbEndpoints.newBuilder()
-                                                .addLbEndpoints(
-                                                        LbEndpoint.newBuilder()
-                                                                .setEndpoint(
-                                                                        Endpoint.newBuilder()
-                                                                                .setAddress(
-                                                                                        Address.newBuilder()
-                                                                                                .setSocketAddress(
-                                                                                                        SocketAddress.newBuilder()
-                                                                                                                .setAddress(ip)
-                                                                                                                .setPortValue(port)
-                                                                                                                .setProtocolValue(SocketAddress.Protocol.TCP_VALUE)))))))
-                .build();
-    }
 }

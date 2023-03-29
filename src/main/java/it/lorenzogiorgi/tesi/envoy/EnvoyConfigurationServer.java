@@ -58,17 +58,36 @@ public class EnvoyConfigurationServer {
             proxiesSnapshot.put(mecNode.getFrontProxy().getId(), new SnapshotInstance());
         }
 
-        //test();
+        test();
 
     }
 
 
     public void test() {
-        //addListenerToProxy("edge1", "default", "0.0.0.0", 80);
-        //addRedirectToProxy("edge1", "*lorenzogiorgi.com", "default", "/service1", "1000", "edge2.lorenzogiorgi.com", 8080);
-        //addRedirectToProxy("edge1", "*lorenzogiorgi.com", "default", "/service2", "1000", "edge3.lorenzogiorgi.com", 8080);
-        //addClusterToProxy("edge1", "echo", "172.17.0.2", 80);
-        //addClusterToProxy("edge2", "echo", "172.17.0.2", 80);
+        addListenerToProxy("edge1", "default", "0.0.0.0", 80);
+        try {
+            Thread.sleep(15000);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        addRedirectToProxy("lorenzo", "edge1", "*lorenzogiorgi.com", "default", "/service1", "1000", "edge2.lorenzogiorgi.com", 8080);
+        addClusterToProxy("lorenzo", "edge1", "echooo", "172.17.0.2", 80);
+        //ddRedirectToProxy("edge1", "*lorenzogiorgi.com", "default", "/service2", "1000", "edge3.lorenzogiorgi.com", 8080);
+        //for(int i=0; i<10;i++) {
+        //    addClusterToProxy("edge1", "echo"+i, "172.17.0.2", 80);
+        //}
+
+        //addRedirectToProxy("edge1", "*lorenzogiorgi.com", "default", "/service3", "1000", "edge3.lorenzogiorgi.com", 8080);
+        try {
+            Thread.sleep(50000);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+
+        for(int i=10; i<15;i++) {
+            addClusterToProxy("lorenzo", "edge1", "echo"+i, "172.17.0.2", 80);
+        }
+
 
     }
 
@@ -89,7 +108,7 @@ public class EnvoyConfigurationServer {
                 .setApiConfigSource(
                         ApiConfigSource.newBuilder()
                                 .setTransportApiVersion(ApiVersion.V3)
-                                .setApiType(ApiConfigSource.ApiType.GRPC)
+                                .setApiType(ApiConfigSource.ApiType.DELTA_GRPC)
                                 .addGrpcServices(
                                         GrpcService.newBuilder()
                                                 .setEnvoyGrpc(
@@ -139,11 +158,11 @@ public class EnvoyConfigurationServer {
     }
 
 
-    public boolean addRouteToProxy(String proxyId, String domain, String routeConfigName, String prefix,
+    public boolean addRouteToProxy(String username, String proxyId, String domain, String routeConfigName, String prefix,
                                    String userCookie, String destinationCluster) {
 
         Route.Builder route = Route.newBuilder()
-                .setName(userCookie+"-"+prefix)// sfruttare per l'eliminazione
+                .setName(username+"-"+prefix)// sfruttare per l'eliminazione
                 .setMatch(
                         RouteMatch.newBuilder()
                                 .setPathSeparatedPrefix(prefix)
@@ -173,7 +192,7 @@ public class EnvoyConfigurationServer {
 
 
 
-    public boolean addRedirectToProxy(String proxyId, String domain, String routeConfigName, String prefix,
+    public boolean addRedirectToProxy(String username, String proxyId, String domain, String routeConfigName, String prefix,
                                                  String userCookie, String destinationHost, int destinationPort) {
         RouteConfiguration routeConfiguration = RouteConfiguration.newBuilder()
                 .setName(routeConfigName)
@@ -183,7 +202,7 @@ public class EnvoyConfigurationServer {
                                 .addDomains(domain)
                                 .addRoutes(
                                         Route.newBuilder()
-                                                .setName(userCookie+"-"+prefix)
+                                                .setName(username+"-"+prefix)
                                                 .setMatch(
                                                         RouteMatch.newBuilder()
                                                                 .setPathSeparatedPrefix(prefix)
@@ -202,9 +221,9 @@ public class EnvoyConfigurationServer {
     }
 
 
-    public boolean addClusterToProxy(String proxyId, String clusterName, String ip, int port) {
+    public boolean addClusterToProxy(String username, String proxyId, String clusterName, String ip, int port) {
         Cluster newCluster =  Cluster.newBuilder()
-                .setName(clusterName)
+                .setName(username+"-"+clusterName)
                 .setConnectTimeout(Durations.fromSeconds(5))
                 .setType(Cluster.DiscoveryType.STRICT_DNS)
                 .setLoadAssignment(
@@ -230,5 +249,10 @@ public class EnvoyConfigurationServer {
         if(!result) return false;
         updateProxyCacheSnapshot(proxyId);
         return true;
+    }
+
+    public void convertRouteToRedirect(String user, String sourceProxyId, String destinationProxyId) {
+        proxiesSnapshot.get(sourceProxyId).redirectProxyRoutesByUser(user, destinationProxyId);
+        updateProxyCacheSnapshot(sourceProxyId);
     }
 }
