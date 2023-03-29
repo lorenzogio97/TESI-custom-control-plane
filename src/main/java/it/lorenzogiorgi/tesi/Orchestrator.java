@@ -32,10 +32,12 @@ public class Orchestrator {
     public static EnvoyConfigurationServer envoyConfigurationServer;
 
     public static Gson gson;
+
+
     public static void main(String[] arg) throws IOException, InterruptedException {
         gson = new Gson();
         envoyConfigurationServer = new EnvoyConfigurationServer(18000);
-        System.out.println(DNSUpdater.updateDNSRecord("lorenzogiorgi.com", "edge5.lorenzogiorgi.com", "A", 20, "192.168.1.4"));
+
 
         Spark.ipAddress("127.0.0.1");
         Spark.port(8080);
@@ -79,8 +81,8 @@ public class Orchestrator {
             MECNode mecNode = mecNodeList.get(edgeNumber);
 
             //substract requested resources
-            //mecNode.setAvailableCPU(mecNode.getAvailableCPU()-cpuRequirement);
-            //mecNode.setTotalMemory(mecNode.getAvailableMemory()-memoryRequirement);
+            mecNode.setAvailableCPU(mecNode.getAvailableCPU()-cpuRequirement);
+            mecNode.setTotalMemory(mecNode.getAvailableMemory()-memoryRequirement);
 
             //connect to Docker demon on the target MECNode
             DockerHttpClient httpClient = new ApacheDockerHttpClient.Builder()
