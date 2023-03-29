@@ -55,6 +55,12 @@ public class Configuration {
         Gson gson = gsonBuilder.create();
         gson.fromJson(jsonString, Configuration.class);
         loadUsers();
+
+        //initialize availableCPU and RAM to totalCPU and RAM
+        for (MECNode mecNode: mecNodes) {
+            mecNode.setAvailableCPU(mecNode.getTotalCPU());
+            mecNode.setAvailableMemory(mecNode.getTotalMemory());
+        }
     }
 
     /**
