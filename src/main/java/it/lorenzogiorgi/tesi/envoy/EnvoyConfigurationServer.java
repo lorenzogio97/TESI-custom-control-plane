@@ -58,36 +58,12 @@ public class EnvoyConfigurationServer {
             proxiesSnapshot.put(mecNode.getFrontProxy().getId(), new SnapshotInstance());
         }
 
-        test();
+        //test();
 
     }
 
 
     public void test() {
-        addListenerToProxy("edge1", "default", "0.0.0.0", 80);
-        try {
-            Thread.sleep(15000);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        addRedirectToProxy("lorenzo", "edge1", "*lorenzogiorgi.com", "default", "/service1", "1000", "edge2.lorenzogiorgi.com", 8080);
-        addClusterToProxy("lorenzo", "edge1", "echooo", "172.17.0.2", 80);
-        //ddRedirectToProxy("edge1", "*lorenzogiorgi.com", "default", "/service2", "1000", "edge3.lorenzogiorgi.com", 8080);
-        //for(int i=0; i<10;i++) {
-        //    addClusterToProxy("edge1", "echo"+i, "172.17.0.2", 80);
-        //}
-
-        //addRedirectToProxy("edge1", "*lorenzogiorgi.com", "default", "/service3", "1000", "edge3.lorenzogiorgi.com", 8080);
-        try {
-            Thread.sleep(50000);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-
-        for(int i=10; i<15;i++) {
-            addClusterToProxy("lorenzo", "edge1", "echo"+i, "172.17.0.2", 80);
-        }
-
 
     }
 
@@ -170,7 +146,7 @@ public class EnvoyConfigurationServer {
                 .setRoute(
                         RouteAction.newBuilder()
                                 .setPrefixRewrite("/")
-                                .setCluster(destinationCluster));
+                                .setCluster(username+"-"+destinationCluster));
 
 
         RouteConfiguration routeConfiguration =  RouteConfiguration.newBuilder()
@@ -228,7 +204,7 @@ public class EnvoyConfigurationServer {
                 .setType(Cluster.DiscoveryType.STRICT_DNS)
                 .setLoadAssignment(
                         ClusterLoadAssignment.newBuilder()
-                                .setClusterName(clusterName)
+                                .setClusterName(username+"-"+clusterName)
                                 .addEndpoints(
                                         LocalityLbEndpoints.newBuilder()
                                                 .addLbEndpoints(
