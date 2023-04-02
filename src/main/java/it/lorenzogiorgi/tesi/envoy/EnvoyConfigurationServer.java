@@ -28,8 +28,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class EnvoyConfigurationServer {
     private static SimpleCache<String> globalCache;
-    private Server server;
-    private ConcurrentHashMap<String, SnapshotInstance> proxiesSnapshot;
+    private final Server server;
+    private final ConcurrentHashMap<String, SnapshotInstance> proxiesSnapshot;
 
     public EnvoyConfigurationServer(int port) {
         proxiesSnapshot = new ConcurrentHashMap<>();
