@@ -13,6 +13,7 @@ import com.github.dockerjava.transport.DockerHttpClient;
 import com.google.gson.Gson;
 import it.lorenzogiorgi.tesi.api.LoginRequest;
 import it.lorenzogiorgi.tesi.api.LoginResponse;
+import it.lorenzogiorgi.tesi.api.LogoutRequest;
 import it.lorenzogiorgi.tesi.common.*;
 import it.lorenzogiorgi.tesi.dns.DNSUpdater;
 import it.lorenzogiorgi.tesi.envoy.EnvoyConfigurationServer;
@@ -38,10 +39,13 @@ public class Orchestrator {
         gson = new Gson();
         envoyConfigurationServer = new EnvoyConfigurationServer(18000);
 
+        //initialize envoy instances
+
 
         Spark.ipAddress("127.0.0.1");
         Spark.port(8080);
         Spark.post("/login", ((request, response) -> login(request, response)));
+        Spark.post("/logout", ((request, response) -> logout(request, response)));
         Spark.get("/test", ((request, response) -> "TEST"));
 
         envoyConfigurationServer.awaitTermination();
@@ -64,19 +68,25 @@ public class Orchestrator {
             //compute user requirement
             double memoryRequirement = serviceList.stream().map(a-> a.getMaxMemory()).reduce((double) 0, (a, b) -> a + b);
             double cpuRequirement = serviceList.stream().map(a-> a.getMaxCPU()).reduce((double) 0, (a, b) -> a + b);
+            System.out.println("memory req: "+memoryRequirement);
+            System.out.println("cpu req: "+cpuRequirement);
 
             //find the best edge that can fit user requirement
             int edgeNumber=-1;
             for (int i = 0; i < mecNodeList.size(); i++) {
                 MECNode node = mecNodeList.get(i);
-                if (node.getAvailableCPU() <= cpuRequirement && node.getAvailableMemory() <= memoryRequirement) {
+                System.out.println(node.getAvailableCPU());
+                System.out.println(node.getAvailableMemory());
+                System.out.println(i);
+                if (node.getAvailableCPU() >= cpuRequirement && node.getAvailableMemory() >= memoryRequirement) {
                     edgeNumber=i;
                     break;
                 }
             }
+            System.out.println("edge no = "+edgeNumber);
             //no MEC are able to satisfy user requirements
             if(edgeNumber==-1) return false;
-
+            System.out.println("Edge che soddisfa i requirement: "+edgeNumber);
             //get the selected MECnode
             MECNode mecNode = mecNodeList.get(edgeNumber);
 
@@ -178,9 +188,25 @@ public class Orchestrator {
 
         response.status(200);
         response.type("application/json");
-        response.cookie("authID", authId);
+        response.cookie(".lorenzogiorgi.com", "/", "authID", authId, 3600, false, false);
         return gson.toJson(new LoginResponse(true, domainName));
     }
 
+    private static String logout(Request request, Response response) {
+        String usercookie = request.cookie("authID");
+        String requestBody = request.body();
+        LogoutRequest logoutRequest = gson.fromJson(requestBody, LogoutRequest.class);
+
+        //TODO: check if the usercookie correspond to the one assigned to the logged user
+        System.out.println("usercookie: "+usercookie);
+
+        deallocateUserResources(logoutRequest.getUsername());
+        response.status(200);
+        return "";
+    }
+
+    private static void deallocateUserResources(String username) {
+
+    }
 
 }
