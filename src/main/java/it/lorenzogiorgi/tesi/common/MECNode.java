@@ -1,21 +1,23 @@
 package it.lorenzogiorgi.tesi.common;
 
+import java.util.HashMap;
+
 public class MECNode {
-    private EnvoyProxy frontProxy;
+    private HashMap<String, EnvoyProxy> frontProxies;
     private String dockerIpAddress;
     private int dockerPort;
     private double availableMemory;
     private double totalMemory;
     private double availableCPU;
     private double totalCPU;
-    private String MECId;
 
-    public EnvoyProxy getFrontProxy() {
-        return frontProxy;
+
+    public HashMap<String, EnvoyProxy> getFrontProxies() {
+        return frontProxies;
     }
 
-    public void setFrontProxy(EnvoyProxy frontProxy) {
-        this.frontProxy = frontProxy;
+    public void setFrontProxy(HashMap<String, EnvoyProxy> frontProxies) {
+        this.frontProxies = frontProxies;
     }
 
     public String getDockerIpAddress() {
@@ -58,13 +60,7 @@ public class MECNode {
         this.totalCPU = totalCPU;
     }
 
-    public String getMECId() {
-        return MECId;
-    }
 
-    public void setMECId(String MECId) {
-        this.MECId = MECId;
-    }
 
     public int getDockerPort() {
         return dockerPort;
@@ -77,13 +73,12 @@ public class MECNode {
     @Override
     public String toString() {
         return "MECNode{" +
-                "frontProxy=" + frontProxy +
+                "frontProxy=" + frontProxies +
                 ", ipAddress='" + dockerIpAddress + '\'' +
                 ", availableMemory=" + availableMemory +
                 ", totalMemory=" + totalMemory +
                 ", availableCPU=" + availableCPU +
                 ", totalCPU=" + totalCPU +
-                ", MECId='" + MECId + '\'' +
                 '}';
     }
 }

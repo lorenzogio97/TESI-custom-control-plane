@@ -12,6 +12,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 /**
@@ -29,15 +30,32 @@ public class Configuration {
     public static String DNS_API_KEY;
 
     /**
-     * Sample user data
+     * Envoy control plane server configuration
      */
-    public static List<User> users;
+    public static int ENVOY_CONFIGURATION_SERVER_PORT;
+    public static String ENVOY_CONFIGURATION_SERVER_HOSTNAME;
 
     /**
-     * Envoy proxies information
+     * Orchestrator API configuration
      */
-    public static List<MECNode> mecNodes;
+    public static int ORCHESTRATOR_API_PORT;
+    public static String ORCHESTRATOR_API_IP;
 
+    /**
+     * Applications information
+     */
+    public static HashMap<String, Application> applications;
+
+
+    /**
+     * MEC node informations
+     */
+    public static HashMap<String, MECNode> mecNodes;
+
+    /**
+     * Sample user data
+     */
+    public static HashMap<String, List<User>> users;
 
     /*
       Load configuration from file
@@ -57,7 +75,7 @@ public class Configuration {
         loadUsers();
 
         //initialize availableCPU and RAM to totalCPU and RAM
-        for (MECNode mecNode: mecNodes) {
+        for (MECNode mecNode: mecNodes.values()) {
             mecNode.setAvailableCPU(mecNode.getTotalCPU());
             mecNode.setAvailableMemory(mecNode.getTotalMemory());
         }
@@ -74,10 +92,10 @@ public class Configuration {
             throw new RuntimeException(e);
         }
         String jsonString = new String(encoded, StandardCharsets.UTF_8);
-        Type listOfMyClassObject = new TypeToken<ArrayList<User>>() {}.getType();
+        Type hasmapObject = new TypeToken<HashMap<String, User>>() {}.getType();
         GsonBuilder gsonBuilder = new GsonBuilder();
         gsonBuilder.excludeFieldsWithModifiers(Modifier.TRANSIENT);
         Gson gson = gsonBuilder.create();
-        users = gson.fromJson(jsonString, listOfMyClassObject);
+        users = gson.fromJson(jsonString, hasmapObject);
     }
 }

@@ -1,26 +1,13 @@
-[
-  {
-    "username": "lorenzo",
-    "password": "lorenzo",
-    "services": [
-      {
-        "name": "echo",
-        "imageName": "strm/helloworld-http",
-        "imageTag": "latest",
-        "endpointMapping": "/service/http-echo",
-        "exposedPort": 80,
-        "maxCPU": 1,
-        "maxMemory": 512
-      },
-      {
-        "name": "echo2",
-        "imageName": "strm/helloworld-http",
-        "imageTag": "latest",
-        "endpointMapping": "/service/http-echo2",
-        "exposedPort": 80,
-        "maxCPU": 1,
-        "maxMemory": 512
-      }
-    ]
-  }
-]
+{
+  "echo": [
+    {
+      "username": "lorenzo",
+      "password": "lorenzo"
+    },
+    {
+      "username": "elisa",
+      "password": "elisa"
+    }
+  ]
+}
+

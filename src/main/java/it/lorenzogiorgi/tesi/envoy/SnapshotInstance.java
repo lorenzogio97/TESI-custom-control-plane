@@ -194,6 +194,7 @@ public class SnapshotInstance {
                 String.valueOf(++lastVersion)
         );
     }
+
     public synchronized void deleteClustersByUser(String username) {
         List<Cluster> clusterList = lastSnapshot
                 .clusters()

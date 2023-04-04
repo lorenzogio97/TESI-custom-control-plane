@@ -5,10 +5,10 @@ import java.util.List;
 public class User {
     private String username;
     private String password;
-    private List<Service> services;
-
     private String cookie;
-    private String proxyId;
+    private String currentProxyId;
+
+    private String formerProxyId;
 
     public String getUsername() {
         return username;
@@ -26,13 +26,6 @@ public class User {
         this.password = password;
     }
 
-    public List<Service> getServices() {
-        return services;
-    }
-
-    public void setServices(List<Service> services) {
-        this.services = services;
-    }
 
     public String getCookie() {
         return cookie;
@@ -42,22 +35,30 @@ public class User {
         this.cookie = cookie;
     }
 
-    public String getProxyId() {
-        return proxyId;
+    public String getCurrentProxyId() {
+        return currentProxyId;
     }
 
-    public void setProxyId(String proxyId) {
-        this.proxyId = proxyId;
+    public void setCurrentProxyId(String currentProxyId) {
+        this.currentProxyId = currentProxyId;
     }
+
+    public String getFormerProxyId() {
+        return formerProxyId;
+    }
+
+    public void setFormerProxyId(String formerProxyId) {
+        this.formerProxyId = formerProxyId;
+    }
+
 
     @Override
     public String toString() {
         return "User{" +
                 "username='" + username + '\'' +
                 ", password='" + password + '\'' +
-                ", services=" + services +
                 ", cookie='" + cookie + '\'' +
-                ", proxyId='" + proxyId + '\'' +
+                ", proxyId='" + currentProxyId + '\'' +
                 '}';
     }
 }

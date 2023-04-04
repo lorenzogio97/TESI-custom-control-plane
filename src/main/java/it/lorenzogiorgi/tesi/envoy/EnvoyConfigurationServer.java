@@ -31,7 +31,7 @@ public class EnvoyConfigurationServer {
     private final Server server;
     private final ConcurrentHashMap<String, SnapshotInstance> proxiesSnapshot;
 
-    public EnvoyConfigurationServer(int port) {
+    public EnvoyConfigurationServer() {
         proxiesSnapshot = new ConcurrentHashMap<>();
         // la lamda server per definire come ottenere il node-group dal node id,  in pratica è il criterio per
         // creare il group identifier che condivide la configurazione.
@@ -39,7 +39,7 @@ public class EnvoyConfigurationServer {
         V3DiscoveryServer v3DiscoveryServer = new V3DiscoveryServer(globalCache);
 
         ServerBuilder builder =
-                NettyServerBuilder.forPort(port)
+                NettyServerBuilder.forPort(Configuration.ENVOY_CONFIGURATION_SERVER_PORT)
                         .addService(v3DiscoveryServer.getClusterDiscoveryServiceImpl())
                         .addService(v3DiscoveryServer.getEndpointDiscoveryServiceImpl())
                         .addService(v3DiscoveryServer.getListenerDiscoveryServiceImpl())
@@ -54,9 +54,9 @@ public class EnvoyConfigurationServer {
         }
 
         //inizialize proxy snapshots
-        for (MECNode mecNode:Configuration.mecNodes) {
-            proxiesSnapshot.put(mecNode.getFrontProxy().getId(), new SnapshotInstance());
-        }
+        //for (MECNode mecNode:Configuration.mecNodes) {
+        //    proxiesSnapshot.put(mecNode.getFrontProxies().values(), new SnapshotInstance());
+        //}
 
         //test();
 
@@ -134,7 +134,7 @@ public class EnvoyConfigurationServer {
     }
 
 
-    public boolean addRouteToProxy(String username, String proxyId, String domain, String routeConfigName, String prefix,
+    public boolean addRouteToProxy(String proxyId, String username, String domain, String routeConfigName, String prefix,
                                    String userCookie, String destinationCluster) {
 
         Route.Builder route = Route.newBuilder()
@@ -168,7 +168,7 @@ public class EnvoyConfigurationServer {
 
 
 
-    public boolean addRedirectToProxy(String username, String proxyId, String domain, String routeConfigName, String prefix,
+    public boolean addRedirectToProxy(String proxyId, String username, String domain, String routeConfigName, String prefix,
                                                  String userCookie, String destinationHost, int destinationPort) {
         RouteConfiguration routeConfiguration = RouteConfiguration.newBuilder()
                 .setName(routeConfigName)
@@ -197,7 +197,7 @@ public class EnvoyConfigurationServer {
     }
 
 
-    public boolean addClusterToProxy(String username, String proxyId, String clusterName, String ip, int port) {
+    public boolean addClusterToProxy(String proxyId, String username, String clusterName, String ip, int port) {
         Cluster newCluster =  Cluster.newBuilder()
                 .setName(username+"-"+clusterName)
                 .setConnectTimeout(Durations.fromSeconds(5))

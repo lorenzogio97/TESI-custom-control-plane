@@ -2,6 +2,7 @@ package it.lorenzogiorgi.tesi.api;
 
 public class LoginResponse {
     private boolean logged;
+    private String appName;
     private String domainName;
 
     public LoginResponse(boolean logged, String domainName) {
@@ -15,6 +16,14 @@ public class LoginResponse {
 
     public void setLogged(boolean logged) {
         this.logged = logged;
+    }
+
+    public String getAppName() {
+        return appName;
+    }
+
+    public void setAppName(String appName) {
+        this.appName = appName;
     }
 
     public String getDomainName() {
