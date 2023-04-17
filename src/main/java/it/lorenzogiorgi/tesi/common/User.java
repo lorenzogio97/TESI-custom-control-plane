@@ -1,14 +1,12 @@
 package it.lorenzogiorgi.tesi.common;
 
-import java.util.List;
-
 public class User {
     private String username;
     private String password;
     private String cookie;
-    private String currentProxyId;
+    private String currentMECId;
 
-    private String formerProxyId;
+    private String formerMECId;
 
     public String getUsername() {
         return username;
@@ -35,20 +33,20 @@ public class User {
         this.cookie = cookie;
     }
 
-    public String getCurrentProxyId() {
-        return currentProxyId;
+    public String getCurrentMECId() {
+        return currentMECId;
     }
 
-    public void setCurrentProxyId(String currentProxyId) {
-        this.currentProxyId = currentProxyId;
+    public void setCurrentMECId(String currentMECId) {
+        this.currentMECId = currentMECId;
     }
 
-    public String getFormerProxyId() {
-        return formerProxyId;
+    public String getFormerMECId() {
+        return formerMECId;
     }
 
-    public void setFormerProxyId(String formerProxyId) {
-        this.formerProxyId = formerProxyId;
+    public void setFormerMECId(String formerMECId) {
+        this.formerMECId = formerMECId;
     }
 
 
@@ -58,7 +56,7 @@ public class User {
                 "username='" + username + '\'' +
                 ", password='" + password + '\'' +
                 ", cookie='" + cookie + '\'' +
-                ", proxyId='" + currentProxyId + '\'' +
+                ", proxyId='" + currentMECId + '\'' +
                 '}';
     }
 }
