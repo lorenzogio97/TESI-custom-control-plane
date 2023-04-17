@@ -92,7 +92,7 @@ public class Configuration {
             throw new RuntimeException(e);
         }
         String jsonString = new String(encoded, StandardCharsets.UTF_8);
-        Type hasmapObject = new TypeToken<HashMap<String, User>>() {}.getType();
+        Type hasmapObject = new TypeToken<HashMap<String, List<User>>>() {}.getType();
         GsonBuilder gsonBuilder = new GsonBuilder();
         gsonBuilder.excludeFieldsWithModifiers(Modifier.TRANSIENT);
         Gson gson = gsonBuilder.create();
