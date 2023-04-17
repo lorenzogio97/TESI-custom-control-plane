@@ -4,7 +4,7 @@ public class LoginRequest {
     private String username;
     private String password;
 
-    private String appName;
+    private String applicationName;
 
     public String getUsername() {
         return username;
@@ -22,11 +22,11 @@ public class LoginRequest {
         this.password = password;
     }
 
-    public String getAppName() {
-        return appName;
+    public String getApplicationName() {
+        return applicationName;
     }
 
-    public void setAppName(String appName) {
-        this.appName = appName;
+    public void setApplicationName(String applicationName) {
+        this.applicationName = applicationName;
     }
 }
