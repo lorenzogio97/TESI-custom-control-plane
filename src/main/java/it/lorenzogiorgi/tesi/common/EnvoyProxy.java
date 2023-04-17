@@ -4,6 +4,12 @@ public class EnvoyProxy {
     private String ipAddress;
     private String id;
 
+
+    public EnvoyProxy(String ipAddress, String id) {
+        this.ipAddress = ipAddress;
+        this.id = id;
+    }
+
     public String getIpAddress() {
         return ipAddress;
     }
