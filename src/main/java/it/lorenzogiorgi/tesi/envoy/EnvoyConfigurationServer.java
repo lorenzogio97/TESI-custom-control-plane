@@ -54,18 +54,14 @@ public class EnvoyConfigurationServer {
         }
 
         //inizialize proxy snapshots
-        //for (MECNode mecNode:Configuration.mecNodes) {
-        //    proxiesSnapshot.put(mecNode.getFrontProxies().values(), new SnapshotInstance());
-        //}
-
-        //test();
-
-    }
-
-
-    public void test() {
+        for (String applicationName:Configuration.applications.keySet()) {
+            for(String mecId: Configuration.applications.get(applicationName).getAllowedMECId()){
+                proxiesSnapshot.put(mecId+"-"+applicationName, new SnapshotInstance());
+            }
+        }
 
     }
+
 
     public void awaitTermination() {
         try {
