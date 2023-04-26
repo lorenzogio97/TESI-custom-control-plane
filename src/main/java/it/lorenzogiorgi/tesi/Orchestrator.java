@@ -12,10 +12,7 @@ import com.github.dockerjava.core.DockerClientImpl;
 import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
 import com.github.dockerjava.transport.DockerHttpClient;
 import com.google.gson.Gson;
-import it.lorenzogiorgi.tesi.api.LoginRequest;
-import it.lorenzogiorgi.tesi.api.LoginResponse;
-import it.lorenzogiorgi.tesi.api.LogoutRequest;
-import it.lorenzogiorgi.tesi.api.LogoutResponse;
+import it.lorenzogiorgi.tesi.api.*;
 import it.lorenzogiorgi.tesi.common.*;
 import it.lorenzogiorgi.tesi.common.Service;
 import it.lorenzogiorgi.tesi.dns.DNSUpdater;
@@ -47,7 +44,9 @@ public class Orchestrator {
         Spark.port(Configuration.ORCHESTRATOR_API_PORT);
         Spark.post("/login", ((request, response) -> login(request, response)));
         Spark.post("/logout", ((request, response) -> logout(request, response)));
+        Spark.post("/migrate/:application/:user",((request, response) -> migrate(request, response)));
         Spark.get("/envoyconfiguration/:envoyNodeID", (request, response)  -> serveEnvoyConfiguration(request, response));
+
         Spark.get("/test", ((request, response) -> "TEST"));
         Spark.awaitInitialization();
 
@@ -59,6 +58,7 @@ public class Orchestrator {
 
         envoyConfigurationServer.awaitTermination();
     }
+
 
     private static void inizializeAutheniticationServers() {
         for(String applicationName: Configuration.applications.keySet()) {
@@ -247,13 +247,12 @@ public class Orchestrator {
         return mecNodes;
     }
 
-    private static boolean allocateUserResources(String applicationName, String username, String authCookie, String userDomainName)  {
-        //set a preference order between the MECNode, as the AMS API could do
-        List<String> mecNodeIds = findNearestMECNode();
+    private static boolean allocateUserResources(List<String> nearestMECNodeIDs, String applicationName, String username, String authCookie, String userDomainName)  {
+
 
         //filter MECNode that are allowed for application, it keeps order provided by AMS
         List<String> allowedMECId = Configuration.applications.get(applicationName).getAllowedMECId();
-        List<String> mecNodeIDList = mecNodeIds
+        List<String> mecNodeIDList = nearestMECNodeIDs
                 .stream()
                 .filter(allowedMECId::contains)
                 .collect(Collectors.toList());
@@ -284,11 +283,19 @@ public class Orchestrator {
                 System.out.println(node.getAvailableCPU());
                 System.out.println(node.getAvailableMemory());
                 System.out.println(i);
+
+                //if we are already logged and we find the current MEC in the list, it means that better option are
+                // not available for allocation (they came before in mecNodeIDList)
+                //So we return false in order to keep the current allocation.
+                if(user.getCurrentMECId()!=null && user.getCurrentMECId().equals(mecId)) {
+                    return false;
+                }
                 if (node.getAvailableCPU() >= cpuRequirement && node.getAvailableMemory() >= memoryRequirement) {
                     selectedMECId=mecId;
                     break;
                 }
             }
+
 
             //no MEC are able to satisfy user requirements
             if(selectedMECId==null) return false;
@@ -413,8 +420,10 @@ public class Orchestrator {
         //compute domain name for the user
         String domainName = user.getUsername()+"."+application.getDomain();
 
+        //get nearest MECNode
+        List<String> nearestMECNodeIDs = findNearestMECNode();
         //resource allocation
-        boolean allocated = allocateUserResources(applicationName, user.getUsername(), authId, domainName);
+        boolean allocated = allocateUserResources(nearestMECNodeIDs, applicationName, user.getUsername(), authId, domainName);
 
         if(!allocated) {
             response.status(503);
@@ -489,6 +498,59 @@ public class Orchestrator {
         user.setCookie(null);
 
     }
+
+    private static String migrate(Request request, Response response) {
+        String applicationName = request.params(":application");
+        String username = request.params(":username");
+
+        MigrationRequest migrationRequest = gson.fromJson(request.body(), MigrationRequest.class);
+
+        List<String> mecListIDs = migrationRequest.getMECList();
+
+        //find user to migrate
+        List<User> userList = Configuration.users.get(applicationName);
+        Optional<User> optionalUser = Optional.ofNullable(userList).orElse(Collections.emptyList())
+                .stream()
+                .filter(a -> a.getUsername().equals(username) &&
+                        a.getCurrentMECId()!=null &&
+                        a.getCookie()!=null)
+                .findFirst();
+
+        //user not found or not logged (cookie is null)
+        if(!optionalUser.isPresent()) {
+            response.status(401);
+            response.type("application/json");
+            return "";
+        }
+
+        //get the user
+        User user = optionalUser.get();
+
+        //if user is already on the best MEC, no need to migrate
+        if(user.getCurrentMECId().equals(mecListIDs.get(0))) {
+            response.status(204);
+            return "";
+        }
+
+        Application application = Configuration.applications.get(applicationName);
+        String domainName = user.getUsername() + application.getDomain();
+
+        //resource allocation
+        boolean allocated = allocateUserResources(mecListIDs, applicationName, user.getUsername(), user.getCookie(), domainName);
+
+        if(!allocated) {
+            response.status(503);
+            response.type("application/json");
+            return "";
+        }
+
+        envoyConfigurationServer.convertRouteToRedirect(username, user.getFormerMECId(), user.getCurrentMECId());
+
+        response.status(204);
+        return "";
+
+    }
+
 
 
 
