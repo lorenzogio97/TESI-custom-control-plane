@@ -11,7 +11,6 @@ import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 
@@ -42,20 +41,28 @@ public class Configuration {
     public static String ORCHESTRATOR_API_IP;
 
     /**
+     * Platform domain configuration
+     */
+    public static String PLATFORM_DOMAIN;
+    public static String PLATFORM_AUTHENTICATION_DOMAIN;
+    public static String PLATFORM_USER_BASE_DOMAIN;
+    public static String PLATFORM_NODE_BASE_DOMAIN;
+
+    /**
      * Applications information
      */
     public static HashMap<String, Application> applications;
 
 
     /**
-     * MEC node informations
+     * Edge node information
      */
-    public static HashMap<String, MECNode> mecNodes;
+    public static HashMap<String, EdgeNode> edgeNodes;
 
     /**
      * Sample user data
      */
-    public static HashMap<String, List<User>> users;
+    public static HashMap<String, User> users;
 
     /*
       Load configuration from file
@@ -75,9 +82,9 @@ public class Configuration {
         loadUsers();
 
         //initialize availableCPU and RAM to totalCPU and RAM
-        for (MECNode mecNode: mecNodes.values()) {
-            mecNode.setAvailableCPU(mecNode.getTotalCPU());
-            mecNode.setAvailableMemory(mecNode.getTotalMemory());
+        for (EdgeNode edgeNode : edgeNodes.values()) {
+            edgeNode.setAvailableCPU(edgeNode.getTotalCPU());
+            edgeNode.setAvailableMemory(edgeNode.getTotalMemory());
         }
     }
 

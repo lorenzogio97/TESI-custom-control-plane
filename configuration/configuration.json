@@ -1,21 +1,27 @@
 {
-  "DNS_API_IP": "192.168.1.54",
+  "DNS_API_IP": "172.16.5.14",
   "DNS_API_PORT": 8081,
   "DNS_API_SERVER_ID": "localhost",
   "DNS_API_KEY": "powerdns",
   "ENVOY_CONFIGURATION_SERVER_PORT": 18000,
-  "ENVOY_CONFIGURATION_SERVER_HOSTNAME": "controlplane.lorenzogiorgi.com",
+  "ENVOY_CONFIGURATION_SERVER_HOSTNAME": "172.16.2.121",
   "ORCHESTRATOR_API_PORT": 8080,
-  "ORCHESTRATOR_API_IP": "0.0.0.0",
-  "mecNodes": {
+  "ORCHESTRATOR_API_IP": "172.16.2.121",
+  "PLATFORM_DOMAIN": "lorenzogiorgi.com",
+  "PLATFORM_AUTHENTICATION_DOMAIN": "auth.lorenzogiorgi.com",
+  "PLATFORM_USER_BASE_DOMAIN": "user.lorenzogiorgi.com",
+  "PLATFORM_NODE_BASE_DOMAIN": "edge.lorenzogiorgi.com",
+  "edgeNodes": {
     "edge1": {
-      "dockerIpAddress": "192.168.1.59",
+      "edgeId": "edge1",
+      "ipAddress": "172.16.4.48",
       "dockerPort": 2375,
       "totalMemory": 2048,
       "totalCPU": 3
     },
     "edge2": {
-      "dockerIpAddress": "192.168.1.62",
+      "edgeId": "edge2",
+      "ipAddress": "172.16.4.66",
       "dockerPort": 2375,
       "totalMemory": 1024,
       "totalCPU": 3
@@ -23,15 +29,13 @@
   },
   "applications": {
     "echo": {
-      "authDomain": "auth.lorenzogiorgi.com",
-      "domain": "lorenzogiorgi.com",
-      "allowedMECId": ["edge1", "edge2"],
+      "name": "echo",
+      "sharable": false,
       "services": [
         {
           "name": "echo",
           "imageName": "strm/helloworld-http",
           "imageTag": "latest",
-          "endpointMapping": "/service/http-echo",
           "exposedPort": 80,
           "maxCPU": 1,
           "maxMemory": 512
@@ -40,7 +44,6 @@
           "name": "echo2",
           "imageName": "strm/helloworld-http",
           "imageTag": "latest",
-          "endpointMapping": "/service/http-echo2",
           "exposedPort": 80,
           "maxCPU": 1,
           "maxMemory": 512
