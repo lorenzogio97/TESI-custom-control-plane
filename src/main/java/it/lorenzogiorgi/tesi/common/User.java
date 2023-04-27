@@ -1,8 +1,11 @@
 package it.lorenzogiorgi.tesi.common;
 
+import java.util.List;
+
 public class User {
     private String username;
     private String password;
+    private List<String> applications;
     private String cookie;
     private String currentMECId;
 
@@ -24,6 +27,13 @@ public class User {
         this.password = password;
     }
 
+    public List<String> getApplications() {
+        return applications;
+    }
+
+    public void setApplications(List<String> applications) {
+        this.applications = applications;
+    }
 
     public String getCookie() {
         return cookie;

@@ -1,13 +1,13 @@
 {
-  "echo": [
-    {
-      "username": "lorenzo",
-      "password": "lorenzo"
-    },
-    {
-      "username": "elisa",
-      "password": "elisa"
-    }
-  ]
+  "lorenzo": {
+    "username": "lorenzo",
+    "password": "lorenzo",
+    "applications": ["echo"]
+  },
+  "elisa": {
+    "username": "elisa",
+    "password": "elisa",
+    "applications": ["echo"]
+  }
 }
 
