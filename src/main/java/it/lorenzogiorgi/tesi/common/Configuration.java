@@ -81,11 +81,14 @@ public class Configuration {
         gson.fromJson(jsonString, Configuration.class);
         loadUsers();
 
+        /*
         //initialize availableCPU and RAM to totalCPU and RAM
         for (EdgeNode edgeNode : edgeNodes.values()) {
             edgeNode.setAvailableCPU(edgeNode.getTotalCPU());
             edgeNode.setAvailableMemory(edgeNode.getTotalMemory());
         }
+        */
+
     }
 
     /**
@@ -99,7 +102,7 @@ public class Configuration {
             throw new RuntimeException(e);
         }
         String jsonString = new String(encoded, StandardCharsets.UTF_8);
-        Type hasmapObject = new TypeToken<HashMap<String, List<User>>>() {}.getType();
+        Type hasmapObject = new TypeToken<HashMap<String, User>>() {}.getType();
         GsonBuilder gsonBuilder = new GsonBuilder();
         gsonBuilder.excludeFieldsWithModifiers(Modifier.TRANSIENT);
         Gson gson = gsonBuilder.create();

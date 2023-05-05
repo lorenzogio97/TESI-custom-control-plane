@@ -1,6 +1,6 @@
 package it.lorenzogiorgi.tesi.common;
 
-public class Service {
+public class Microservice {
     private String name;
     private String imageName;
     private String imageTag;

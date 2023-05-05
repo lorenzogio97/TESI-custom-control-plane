@@ -1,59 +1,42 @@
 package it.lorenzogiorgi.tesi;
 
-import com.github.dockerjava.api.DockerClient;
-import com.github.dockerjava.api.command.BuildImageResultCallback;
-import com.github.dockerjava.api.command.CreateContainerResponse;
-import com.github.dockerjava.api.command.InspectContainerResponse;
-import com.github.dockerjava.api.command.PullImageResultCallback;
-import com.github.dockerjava.api.model.*;
-import com.github.dockerjava.core.DefaultDockerClientConfig;
-import com.github.dockerjava.core.DockerClientConfig;
-import com.github.dockerjava.core.DockerClientImpl;
-import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
-import com.github.dockerjava.transport.DockerHttpClient;
 import com.google.gson.Gson;
 import it.lorenzogiorgi.tesi.api.*;
 import it.lorenzogiorgi.tesi.common.*;
-import it.lorenzogiorgi.tesi.common.Service;
 import it.lorenzogiorgi.tesi.dns.DNSUpdater;
 import it.lorenzogiorgi.tesi.envoy.EnvoyConfigurationServer;
+import org.apache.logging.log4j.*;
 import spark.Request;
 import spark.Response;
 import spark.Spark;
 
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.net.URI;
-import java.time.Duration;
 import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class Orchestrator {
     public static EnvoyConfigurationServer envoyConfigurationServer;
 
     public static Gson gson;
 
+    private static Logger logger = LogManager.getLogger();
 
     public static void main(String[] arg) {
         gson = new Gson();
         envoyConfigurationServer = new EnvoyConfigurationServer();
-
+        logger.info("Envoy server initialized");
         Spark.ipAddress(Configuration.ORCHESTRATOR_API_IP);
         Spark.port(Configuration.ORCHESTRATOR_API_PORT);
-        Spark.post("/login", ((request, response) -> login(request, response)));
-        Spark.post("/logout", ((request, response) -> logout(request, response)));
-        Spark.post("/migrate/:application/:user",((request, response) -> migrate(request, response)));
-        Spark.get("/envoyconfiguration/:envoyNodeID", (request, response)  -> serveEnvoyConfiguration(request, response));
+        Spark.post("/login", (Orchestrator::login));
+        Spark.post("/logout", (Orchestrator::logout));
+        Spark.post("/migrate/:user",(Orchestrator::migrate));
+        Spark.get("/envoyconfiguration/:envoyNodeID", Orchestrator::serveEnvoyConfiguration);
 
         Spark.get("/test", ((request, response) -> "TEST"));
         Spark.awaitInitialization();
 
-        //initialize envoy instances
-        initializeEnvoyInstances();
+        //initialize edge nodes
+        initializeEdgeNodes();
 
-        //initialize Authenitication Server (DNS mapping with Auth URL of all applications)
+        //initialize Authenitication Server (DNS mapping with Auth URL)
         inizializeAutheniticationServers();
 
         envoyConfigurationServer.awaitTermination();
@@ -61,11 +44,9 @@ public class Orchestrator {
 
 
     private static void inizializeAutheniticationServers() {
-        for(String applicationName: Configuration.applications.keySet()) {
-            Application application = Configuration.applications.get(applicationName);
-            DNSUpdater.updateDNSRecord(application.getDomain(), application.getAuthDomain(), "A", 600, Configuration.ORCHESTRATOR_API_IP);
-        }
+        DNSUpdater.updateDNSRecord(Configuration.PLATFORM_DOMAIN, Configuration.PLATFORM_AUTHENTICATION_DOMAIN, "A", 600, Configuration.ORCHESTRATOR_API_IP);
     }
+
 
 
     private static String serveEnvoyConfiguration(Request request, Response response) {
@@ -117,299 +98,42 @@ public class Orchestrator {
                 "    type: STRICT_DNS";
     }
 
-    private static void initializeEnvoyInstances() {
-        HashMap<String, MECNode> mecNodesMap = Configuration.mecNodes;
-        HashMap<String, Application> applicationsMap = Configuration.applications;
-
-
-        //
-        for(String mecId: mecNodesMap.keySet()) {
-            DockerClient dockerClient = getDockerClient(mecNodesMap.get(mecId));
-
-            //obtain container list
-            List<Container> containers = dockerClient.listContainersCmd()
-                    .withShowSize(true)
-                    .withShowAll(true)
-                    .exec();
-
-            //kill and remove all container
-            for(Container container: containers) {
-                if(!container.getState().equals("exited")) {
-                    dockerClient.killContainerCmd(container.getId()).exec();
-                }
-                dockerClient.removeContainerCmd(container.getId()).exec();
-            }
-
-
-        }
-
-
-        for(String applicationName: applicationsMap.keySet()) {
-            Application application = applicationsMap.get(applicationName);
-            List<String> allowedMECId = application.getAllowedMECId()
-                    .stream()
-                    .filter(mecNodesMap::containsKey)
-                    .collect(Collectors.toList());
-
-            for(String mecId: allowedMECId) {
-                DockerClient dockerClient = getDockerClient(mecNodesMap.get(mecId));
-
-                //create Dockerfile
-                String configurationFileUrl= "http://"+Configuration.ORCHESTRATOR_API_IP+":"
-                        +Configuration.ORCHESTRATOR_API_PORT+"/envoyconfiguration/"+mecId+"-"+applicationName;
-                String dockerfileString =
-                        "FROM envoyproxy/envoy-dev:latest\n" +
-                                "\n" +
-                                "ENV DEBIAN_FRONTEND=noninteractive\n" +
-                                "\n" +
-                                "RUN apt-get update -y\n" +
-                                "RUN apt-get -qq update \\\n" +
-                                "    && apt-get -qq install --no-install-recommends -y curl nano\\\n" +
-                                "    && apt-get -qq autoremove -y \\\n" +
-                                "    && apt-get clean \\\n" +
-                                "    && rm -rf /tmp/* /var/tmp/* /var/lib/apt/lists/* \n" +
-                                "RUN curl "+ configurationFileUrl +" -o envoy-configuration.yaml\n" +
-                                "RUN mv ./envoy-configuration.yaml /etc/front-envoy.yaml\n" +
-                                "RUN chmod go+r /etc/front-envoy.yaml\n" +
-                                "CMD [\"/usr/local/bin/envoy\", \"-c\", \"/etc/front-envoy.yaml\", \"--service-cluster\", \"front-proxy\"]";
-
-                String imageId;
-                try {
-                    File dockerfile= new File("./configuration/Dockerfile-"+mecId+applicationName);
-                    try (FileWriter writer = new FileWriter(dockerfile)) {
-                        writer.write(dockerfileString);
-                        writer.flush();
-                    }
-
-                    //create custom envoy image
-                    imageId = dockerClient.buildImageCmd()
-                            .withDockerfile(dockerfile)
-                            .withPull(true)
-                            .withNoCache(true)
-                            .withTags(Stream.of("envoy:"+applicationName).collect(Collectors.toSet()))
-                            .exec(new BuildImageResultCallback())
-                            .awaitImageId();
-                    dockerfile.delete();
-
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-
-                //create Envoy container
-                CreateContainerResponse container = dockerClient
-                        .createContainerCmd(imageId)
-                        .withName(mecId+"-"+applicationName)
-                        .withExposedPorts(ExposedPort.tcp(80))
-                        .withExposedPorts(new ArrayList<>(Arrays.asList(
-                                ExposedPort.tcp(80),
-                                ExposedPort.tcp(10000)
-                        )))
-                        .withHostConfig(HostConfig.newHostConfig()
-                                .withPortBindings(new ArrayList<PortBinding>(Arrays.asList(
-                                        PortBinding.parse(mecNodesMap.get(mecId).getDockerIpAddress()+":80/tcp:80"),
-                                        PortBinding.parse(mecNodesMap.get(mecId).getDockerIpAddress()+":10000/tcp:10000"))
-                                        )
-                                )
-                        )
-                        .exec();
-
-                // start the container
-                dockerClient.startContainerCmd(container.getId()).exec();
-
-                //update data structures
-                MECNode mecNode = Configuration.mecNodes.get(mecId);
-                if(mecNode.getFrontProxies()==null) {
-                    mecNode.setFrontProxy(new HashMap<>());
-                }
-                String proxyId = mecId+"-"+applicationName;
-                mecNode.getFrontProxies().put(applicationName, new EnvoyProxy(mecNode.getDockerIpAddress(), proxyId));
-
-                //update DNS entry for Edge Proxy (useful for redirect)
-                String proxyDomain = proxyId+"."+application.getDomain();
-                DNSUpdater.updateDNSRecord(application.getDomain(), proxyDomain, "A",  600, mecNode.getFrontProxies().get(applicationName).getIpAddress());
-
-                //cleanup dangling images
-                List<Image> images = dockerClient.listImagesCmd()
-                        .withDanglingFilter(true).exec();
-                for(Image image:images) {
-                    dockerClient.removeImageCmd(image.getId()).exec();
-                }
-
-            }
-
-        }
-        System.out.println("Envoy nodes initialized");
+    private static void initializeEdgeNodes() {
+        Configuration.edgeNodes.values().forEach(EdgeNode::initialize);
+        System.out.println("Edge nodes initialized");
     }
 
     private static List<String> findNearestMECNode() {
-        List<String> mecNodes  = new ArrayList<>(Configuration.mecNodes.keySet());
+        List<String> mecNodes  = new ArrayList<>(Configuration.edgeNodes.keySet());
         Collections.shuffle(mecNodes);
         return mecNodes;
     }
 
-    private static boolean allocateUserResources(List<String> nearestMECNodeIDs, String applicationName, String username, String authCookie, String userDomainName)  {
 
-
-        //filter MECNode that are allowed for application, it keeps order provided by AMS
-        List<String> allowedMECId = Configuration.applications.get(applicationName).getAllowedMECId();
-        List<String> mecNodeIDList = nearestMECNodeIDs
-                .stream()
-                .filter(allowedMECId::contains)
-                .collect(Collectors.toList());
-
-        //get User resource to allocate
-        User user = Configuration.users
-                .get(applicationName)
-                .stream()
-                .filter(u -> u.getUsername().equals(username))
-                .findFirst()
-                .get();
-
-        Application application = Configuration.applications.get(applicationName);
-        List<Service> serviceList = application.getServices();
-
-
-        //syncronized block to avoid TOCTOU concurrency problem
-        synchronized (Orchestrator.class) {
-            //compute user requirement
-            double memoryRequirement = serviceList.stream().map(a-> a.getMaxMemory()).reduce((double) 0, (a, b) -> a + b);
-            double cpuRequirement = serviceList.stream().map(a-> a.getMaxCPU()).reduce((double) 0, (a, b) -> a + b);
-
-            //find the best (e.g. nearest, computed by the AMS) edge that can fit user requirement
-            String selectedMECId=null;
-            for (int i = 0; i < mecNodeIDList.size(); i++) {
-                String mecId = mecNodeIDList.get(i);
-                MECNode node = Configuration.mecNodes.get(mecId);
-                System.out.println(node.getAvailableCPU());
-                System.out.println(node.getAvailableMemory());
-                System.out.println(i);
-
-                //if we are already logged and we find the current MEC in the list, it means that better option are
-                // not available for allocation (they came before in mecNodeIDList)
-                //So we return false in order to keep the current allocation.
-                if(user.getCurrentMECId()!=null && user.getCurrentMECId().equals(mecId)) {
-                    return false;
-                }
-                if (node.getAvailableCPU() >= cpuRequirement && node.getAvailableMemory() >= memoryRequirement) {
-                    selectedMECId=mecId;
-                    break;
-                }
-            }
-
-
-            //no MEC are able to satisfy user requirements
-            if(selectedMECId==null) return false;
-            System.out.println("MECNode che soddisfa i requirement: "+selectedMECId);
-
-            //get the selected MECnode
-            MECNode mecNode = Configuration.mecNodes.get(selectedMECId);
-
-
-            //connect to Docker demon on the target MECNode
-            DockerClient dockerClient = getDockerClient(mecNode);
-
-            //pull required images
-            for(Service service:serviceList) {
-                System.out.println("Pulling "+service.getImageName()+" for user "+user.getUsername());
-                try {
-                    dockerClient.pullImageCmd(service.getImageName())
-                            .withTag(service.getImageTag())
-                            .exec(new PullImageResultCallback())
-                            .awaitCompletion();
-                } catch (InterruptedException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-
-            //run containers with the options specified
-            for (Service service: serviceList) {
-                CreateContainerResponse container = dockerClient
-                        .createContainerCmd(service.getImageName()+":"+service.getImageTag())
-                        .withName(user.getUsername()+"-"+service.getName())
-                        .withHostName(user.getUsername()+"-"+service.getName())
-                        .withHostConfig(HostConfig.newHostConfig()
-                                .withCpuPeriod(100000L)
-                                .withCpuQuota((long) (service.getMaxCPU()*100000))
-                                .withMemory((long) service.getMaxMemory()*1000*1000))
-                        .exec();
-
-
-                // start the container
-                dockerClient.startContainerCmd(container.getId()).exec();
-
-                //get ip of the created container
-                InspectContainerResponse inspectContainerResponse = dockerClient.inspectContainerCmd(container.getId()).exec();
-                String ip = inspectContainerResponse.getNetworkSettings().getNetworks().get("bridge").getIpAddress();
-
-                //get Envoy front proxy ID
-                String proxyID = selectedMECId+"-"+applicationName;
-
-                //set envoy clusters and routes
-                envoyConfigurationServer.addListenerToProxy(proxyID, "default", "0.0.0.0", 80);
-
-                envoyConfigurationServer.addRouteToProxy(proxyID, user.getUsername(), application.getDomain(),
-                        "default", service.getEndpointMapping(), authCookie, service.getName());
-
-                envoyConfigurationServer.addClusterToProxy(proxyID, user.getUsername(), service.getName(), ip, service.getExposedPort());
-
-
-            }
-
-            //set DNS domain
-            DNSUpdater.updateDNSRecord(application.getDomain(), userDomainName, "A",  5, mecNode.getFrontProxies().get(applicationName).getIpAddress());
-
-            //substract requested resources
-            mecNode.setAvailableCPU(mecNode.getAvailableCPU()-cpuRequirement);
-            mecNode.setTotalMemory(mecNode.getAvailableMemory()-memoryRequirement);
-
-            //set MECId in User data structure
-            if(user.getCurrentMECId()!=null) {
-                user.setFormerMECId(user.getCurrentMECId());
-                user.setCurrentMECId(selectedMECId);
-            }
-
-            return true;
-
-        }
-
-    }
-
-    private static DockerClient getDockerClient(MECNode mecNode) {
-        DockerHttpClient httpClient = new ApacheDockerHttpClient.Builder()
-                .dockerHost(URI.create("tcp://"+ mecNode.getDockerIpAddress()+":"+ mecNode.getDockerPort()))
-                .maxConnections(100)
-                .connectionTimeout(Duration.ofSeconds(30))
-                .responseTimeout(Duration.ofSeconds(45))
-                .build();
-
-
-        DockerClientConfig custom = DefaultDockerClientConfig.createDefaultConfigBuilder()
-                .withDockerHost("tcp://"+ mecNode.getDockerIpAddress()+":"+ mecNode.getDockerPort())
-                .build();
-        return DockerClientImpl.getInstance(custom, httpClient);
-    }
 
     private static String login(Request request, Response response) {
         String requestBody = request.body();
         LoginRequest loginRequest = gson.fromJson(requestBody, LoginRequest.class);
-        String applicationName = loginRequest.getApplicationName();
-        Application application = Configuration.applications.get(applicationName);
 
         //check username and password
-        List<User> userList = Configuration.users.get(applicationName);
-        Optional<User> optionalUser = Optional.ofNullable(userList).orElse(Collections.emptyList())
-                .stream()
-                .filter(a -> a.getUsername().equals(loginRequest.getUsername()) &&
-                        a.getPassword().equals(loginRequest.getPassword()))
-                .findFirst();
-        if(!optionalUser.isPresent()) {
+        User user= Configuration.users.get(loginRequest.getUsername());
+        if(user==null || user.getPassword()==null || !user.getPassword().equals(loginRequest.getPassword())) {
             response.status(401);
             response.type("application/json");
             return gson.toJson(new LoginResponse(false, null));
         }
 
-        //login successful
-        User user = optionalUser.get();
+        //if user was already logged, we need to destroy all previously allocated resources
+        if(user.getCurrentEdgeNodeId()!=null) {
+            Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).deallocateUserResources(user);
+        }
+        if(user.getFormerEdgeNodeId()!=null) {
+            Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).deallocateUserResources(user);
+        }
+        user.setCurrentEdgeNodeId(null);
+        user.setFormerEdgeNodeId(null);
+        user.setCookie(null);
+
 
         //compute authId cookie
         byte[] array= new byte[32];
@@ -418,13 +142,27 @@ public class Orchestrator {
         System.out.println(authId);
 
         //compute domain name for the user
-        String domainName = user.getUsername()+"."+application.getDomain();
+        String domainName = user.getUsername()+"."+Configuration.PLATFORM_USER_BASE_DOMAIN;
 
         //get nearest MECNode
-        List<String> nearestMECNodeIDs = findNearestMECNode();
-        //resource allocation
-        boolean allocated = allocateUserResources(nearestMECNodeIDs, applicationName, user.getUsername(), authId, domainName);
+        List<String> nearestEdgeNodeIDs = findNearestMECNode();
 
+        //resource allocation
+        boolean allocated = false;
+        for(String edgeId: nearestEdgeNodeIDs) {
+            EdgeNode edgeNode = Configuration.edgeNodes.get(edgeId);
+            allocated = edgeNode.allocateUserResources(user.getUsername(), authId);
+            if(allocated) {
+                //set DNS domain
+                DNSUpdater.updateDNSRecord(Configuration.PLATFORM_DOMAIN, domainName, "A",  5, edgeNode.getIpAddress());
+                //set EdgeNodeId and cookie in User data structure
+                user.setCurrentEdgeNodeId(edgeId);
+                user.setCookie(authId);
+                break;
+            }
+        }
+
+        //allocation failed on all near edge node
         if(!allocated) {
             response.status(503);
             response.type("application/json");
@@ -434,7 +172,7 @@ public class Orchestrator {
 
         response.status(200);
         response.type("application/json");
-        response.cookie("."+application.getDomain(), "/", "authID", authId, 3600, false, false);
+        response.cookie("."+Configuration.PLATFORM_DOMAIN, "/", "authID", authId, 3600, false, false);
         return gson.toJson(new LoginResponse(true, domainName));
     }
 
@@ -442,109 +180,84 @@ public class Orchestrator {
         String userCookie = request.cookie("authID");
         String requestBody = request.body();
         LogoutRequest logoutRequest = gson.fromJson(requestBody, LogoutRequest.class);
-        String applicationName= logoutRequest.getApplicationName();
         String username = logoutRequest.getUsername();
 
-
-        List<User> userList = Configuration.users.get(applicationName);
-        Optional<User> optionalUser = Optional.ofNullable(userList).orElse(Collections.emptyList())
-                .stream()
-                .filter(u -> u.getUsername().equals(username) && u.getCookie()!=null && u.getCookie().equals(userCookie))
-                .findFirst();
-
-        if(!optionalUser.isPresent()) {
+        User user = Configuration.users.get(username);
+        if(user==null || user.getCookie()==null || !user.getCookie().equals(userCookie)) {
             response.status(401);
             response.type("application/json");
             return gson.toJson(new LogoutResponse());
         }
 
+        //delete route and cluster related to a user
+        Orchestrator.envoyConfigurationServer.deleteAllUserResourcesFromProxy(user.getUsername(), user.getCurrentEdgeNodeId());
+        if(user.getFormerEdgeNodeId()!=null) {
+            Orchestrator.envoyConfigurationServer.deleteAllUserResourcesFromProxy(user.getUsername(), user.getFormerEdgeNodeId());
+        }
 
-        deallocateUserResources(applicationName, optionalUser.get());
+        //remove containers
+        Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).deallocateUserResources(user);
+
+        //reset fields in user data structure
+        user.setCurrentEdgeNodeId(null);
+        user.setFormerEdgeNodeId(null);
+        user.setCookie(null);
+
         response.status(200);
         return gson.toJson(new LogoutResponse());
     }
 
-    private static void deallocateUserResources(String applicationName, User user) {
-        String proxyId = user.getCurrentMECId()+"-"+applicationName;
-
-        //delete route and cluster related to a user
-        envoyConfigurationServer.deleteAllUserResourcesFromProxy(user.getUsername(), proxyId);
-        if(user.getFormerMECId()!=null) {
-            proxyId = user.getFormerMECId()+"-"+applicationName;
-            envoyConfigurationServer.deleteAllUserResourcesFromProxy(user.getUsername(), proxyId);
-        }
-
-
-        //delete all container related to the user
-        DockerClient dockerClient = getDockerClient(Configuration.mecNodes.get(user.getCurrentMECId()));
-
-        //obtain container user list
-        List<Container> containers = dockerClient.listContainersCmd()
-                .withShowSize(true)
-                .withShowAll(true)
-                .withNameFilter(Collections.singletonList(user.getUsername() + "-"))
-                .exec();
-
-        //kill and remove all user container
-        for(Container container: containers) {
-            if(!container.getState().equals("exited")) {
-                dockerClient.killContainerCmd(container.getId()).exec();
-            }
-            dockerClient.removeContainerCmd(container.getId()).exec();
-        }
-
-        user.setCurrentMECId(null);
-        user.setFormerMECId(null);
-        user.setCookie(null);
-
-    }
 
     private static String migrate(Request request, Response response) {
-        String applicationName = request.params(":application");
         String username = request.params(":username");
 
         MigrationRequest migrationRequest = gson.fromJson(request.body(), MigrationRequest.class);
 
-        List<String> mecListIDs = migrationRequest.getMECList();
+        List<String> edgeNodeIDs = migrationRequest.getEdgeNodeList();
 
         //find user to migrate
-        List<User> userList = Configuration.users.get(applicationName);
-        Optional<User> optionalUser = Optional.ofNullable(userList).orElse(Collections.emptyList())
-                .stream()
-                .filter(a -> a.getUsername().equals(username) &&
-                        a.getCurrentMECId()!=null &&
-                        a.getCookie()!=null)
-                .findFirst();
+        User user = Configuration.users.get(username);
 
         //user not found or not logged (cookie is null)
-        if(!optionalUser.isPresent()) {
+        if(user==null || user.getCookie()==null) {
             response.status(401);
             response.type("application/json");
             return "";
         }
 
-        //get the user
-        User user = optionalUser.get();
-
         //if user is already on the best MEC, no need to migrate
-        if(user.getCurrentMECId().equals(mecListIDs.get(0))) {
+        if(user.getCurrentEdgeNodeId().equals(edgeNodeIDs.get(0))) {
             response.status(204);
             return "";
         }
 
-        Application application = Configuration.applications.get(applicationName);
-        String domainName = user.getUsername() + application.getDomain();
+        String domainName = user.getUsername() + "." + Configuration.PLATFORM_USER_BASE_DOMAIN;
 
         //resource allocation
-        boolean allocated = allocateUserResources(mecListIDs, applicationName, user.getUsername(), user.getCookie(), domainName);
+        boolean allocated = false;
+        for(String edgeId: edgeNodeIDs) {
+            EdgeNode edgeNode = Configuration.edgeNodes.get(edgeId);
+            allocated = Configuration.edgeNodes.get(edgeId).allocateUserResources(user.getUsername(), user.getCookie());
+            if(allocated) {
+                //set DNS domain
+                DNSUpdater.updateDNSRecord(Configuration.PLATFORM_DOMAIN, domainName, "A",  5, edgeNode.getIpAddress());
+                //set EdgeNodeId and cookie in User data structure
+                user.setFormerEdgeNodeId(user.getCurrentEdgeNodeId());
+                user.setCurrentEdgeNodeId(edgeId);
+                break;
+            }
+        }
 
         if(!allocated) {
             response.status(503);
             response.type("application/json");
             return "";
         }
+        //redirect route to new Edge node
+        envoyConfigurationServer.convertRouteToRedirect(username, user.getFormerEdgeNodeId(), user.getCurrentEdgeNodeId());
 
-        envoyConfigurationServer.convertRouteToRedirect(username, user.getFormerMECId(), user.getCurrentMECId());
+        //delete user resources on old node
+        Configuration.edgeNodes.get(user.getFormerEdgeNodeId()).deallocateUserResources(user);
 
         response.status(204);
         return "";

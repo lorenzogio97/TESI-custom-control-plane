@@ -7,9 +7,9 @@ public class User {
     private String password;
     private List<String> applications;
     private String cookie;
-    private String currentMECId;
+    private String currentEdgeNodeId;
 
-    private String formerMECId;
+    private String formerEdgeNodeId;
 
     public String getUsername() {
         return username;
@@ -43,20 +43,20 @@ public class User {
         this.cookie = cookie;
     }
 
-    public String getCurrentMECId() {
-        return currentMECId;
+    public String getCurrentEdgeNodeId() {
+        return currentEdgeNodeId;
     }
 
-    public void setCurrentMECId(String currentMECId) {
-        this.currentMECId = currentMECId;
+    public void setCurrentEdgeNodeId(String currentEdgeNodeId) {
+        this.currentEdgeNodeId = currentEdgeNodeId;
     }
 
-    public String getFormerMECId() {
-        return formerMECId;
+    public String getFormerEdgeNodeId() {
+        return formerEdgeNodeId;
     }
 
-    public void setFormerMECId(String formerMECId) {
-        this.formerMECId = formerMECId;
+    public void setFormerEdgeNodeId(String formerEdgeNodeId) {
+        this.formerEdgeNodeId = formerEdgeNodeId;
     }
 
 
@@ -65,8 +65,10 @@ public class User {
         return "User{" +
                 "username='" + username + '\'' +
                 ", password='" + password + '\'' +
+                ", applications=" + applications +
                 ", cookie='" + cookie + '\'' +
-                ", proxyId='" + currentMECId + '\'' +
+                ", currentEdgeNodeId='" + currentEdgeNodeId + '\'' +
+                ", formerEdgeNodeId='" + formerEdgeNodeId + '\'' +
                 '}';
     }
 }

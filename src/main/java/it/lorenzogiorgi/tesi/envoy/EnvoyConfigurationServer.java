@@ -21,7 +21,8 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.netty.NettyServerBuilder;
 import it.lorenzogiorgi.tesi.common.Configuration;
-import it.lorenzogiorgi.tesi.common.MECNode;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
@@ -31,14 +32,15 @@ public class EnvoyConfigurationServer {
     private final Server server;
     private final ConcurrentHashMap<String, SnapshotInstance> proxiesSnapshot;
 
+    private Logger logger = LogManager.getLogger();
     public EnvoyConfigurationServer() {
         proxiesSnapshot = new ConcurrentHashMap<>();
         // la lamda server per definire come ottenere il node-group dal node id,  in pratica è il criterio per
         // creare il group identifier che condivide la configurazione.
-        globalCache = new SimpleCache<>(node -> node.getId());
+        globalCache = new SimpleCache<>(Node::getId);
         V3DiscoveryServer v3DiscoveryServer = new V3DiscoveryServer(globalCache);
 
-        ServerBuilder builder =
+        ServerBuilder<NettyServerBuilder> builder =
                 NettyServerBuilder.forPort(Configuration.ENVOY_CONFIGURATION_SERVER_PORT)
                         .addService(v3DiscoveryServer.getClusterDiscoveryServiceImpl())
                         .addService(v3DiscoveryServer.getEndpointDiscoveryServiceImpl())
@@ -53,11 +55,8 @@ public class EnvoyConfigurationServer {
             throw new RuntimeException(e);
         }
 
-        //inizialize proxy snapshots
-        for (String applicationName:Configuration.applications.keySet()) {
-            for(String mecId: Configuration.applications.get(applicationName).getAllowedMECId()){
-                proxiesSnapshot.put(mecId+"-"+applicationName, new SnapshotInstance());
-            }
+        for(String edgeId: Configuration.edgeNodes.keySet()){
+            proxiesSnapshot.put(edgeId, new SnapshotInstance());
         }
 
     }

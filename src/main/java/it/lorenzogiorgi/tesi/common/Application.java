@@ -3,41 +3,32 @@ package it.lorenzogiorgi.tesi.common;
 import java.util.List;
 
 public class Application {
-    private String authDomain;
-    private String domain;
+    private String name;
+    private boolean sharable;
+    private List<Microservice> microservices;
 
-    private List<String> allowedMECId;
-    private List<Service> services;
-
-    public String getAuthDomain() {
-        return authDomain;
+    public String getName() {
+        return name;
     }
 
-    public void setAuthDomain(String authDomain) {
-        this.authDomain = authDomain;
+    public void setName(String name) {
+        this.name = name;
     }
 
-    public String getDomain() {
-        return domain;
+    public boolean isSharable() {
+        return sharable;
     }
 
-    public void setDomain(String domain) {
-        this.domain = domain;
+    public void setSharable(boolean sharable) {
+        this.sharable = sharable;
     }
 
-    public List<Service> getServices() {
-        return services;
+    public List<Microservice> getMicroservices() {
+        return microservices;
     }
 
-    public void setServices(List<Service> services) {
-        this.services = services;
+    public void setMicroservices(List<Microservice> microservices) {
+        this.microservices = microservices;
     }
 
-    public List<String> getAllowedMECId() {
-        return allowedMECId;
-    }
-
-    public void setAllowedMECId(List<String> allowedMECId) {
-        this.allowedMECId = allowedMECId;
-    }
 }
