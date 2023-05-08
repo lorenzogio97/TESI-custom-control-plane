@@ -5,6 +5,7 @@ import io.envoyproxy.controlplane.cache.v3.Snapshot;
 import io.envoyproxy.envoy.config.cluster.v3.Cluster;
 import io.envoyproxy.envoy.config.listener.v3.Listener;
 import io.envoyproxy.envoy.config.route.v3.*;
+import it.lorenzogiorgi.tesi.common.Configuration;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -12,7 +13,6 @@ import java.util.stream.Collectors;
 public class SnapshotInstance {
     private Snapshot lastSnapshot;
     private long lastVersion;
-    private String serviceDomain;
 
     /**
      * Create an empty configuration and set the lastVersion value
@@ -20,7 +20,6 @@ public class SnapshotInstance {
     public SnapshotInstance() {
         this.lastSnapshot = Snapshot.create(ImmutableList.of(), ImmutableList.of(), ImmutableList.of(), ImmutableList.of(), ImmutableList.of(),"1");
         this.lastVersion = 1;
-        this.serviceDomain = "lorenzogiorgi.com";
     }
 
 
@@ -240,13 +239,14 @@ public class SnapshotInstance {
                                                 RouteMatch.newBuilder()
                                                         .setPathSeparatedPrefix(r.getMatch().getPathSeparatedPrefix())
                                                         .addAllHeaders(r.getMatch().getHeadersList()))
-                                        .setRedirect(RedirectAction.newBuilder().setHostRedirect(destinationProxyId + "." + "lorenzogiorgi.com").setPortRedirect(80))
+                                        .setRedirect(RedirectAction.newBuilder().setHostRedirect(destinationProxyId +"."+ Configuration.PLATFORM_NODE_BASE_DOMAIN).setPortRedirect(80))
 
                         );
                     } else {
                         newVirtualHost.addRoutes(r);
                     }
                 }
+                newRouteConfigurationBuilder.addVirtualHosts(newVirtualHost);
             }
             newRouteConfigurationList.add(newRouteConfigurationBuilder.build());
         }
