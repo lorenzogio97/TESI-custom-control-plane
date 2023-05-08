@@ -154,10 +154,10 @@ public class Orchestrator {
 
             //if user was already logged, we need to destroy all previously allocated resources
             if (user.getCurrentEdgeNodeId() != null) {
-                Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).deallocateUserResources(user);
+                Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).deallocateUserResources(user.getUsername());
             }
             if (user.getFormerEdgeNodeId() != null) {
-                Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).deallocateUserResources(user);
+                Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).deallocateUserResources(user.getUsername());
             }
             user.setCurrentEdgeNodeId(null);
             user.setFormerEdgeNodeId(null);
@@ -236,7 +236,7 @@ public class Orchestrator {
             }
 
             //remove containers
-            Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).deallocateUserResources(user);
+            Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).deallocateUserResources(user.getUsername());
 
             //remove dns record
             String domainName = user.getUsername() + "." + Configuration.PLATFORM_USER_BASE_DOMAIN;
@@ -310,7 +310,7 @@ public class Orchestrator {
             envoyConfigurationServer.convertRouteToRedirect(username, user.getFormerEdgeNodeId(), user.getCurrentEdgeNodeId());
 
             //delete user resources on old node
-            Configuration.edgeNodes.get(user.getFormerEdgeNodeId()).deallocateUserResources(user);
+            Configuration.edgeNodes.get(user.getFormerEdgeNodeId()).deallocateUserResources(user.getUsername());
 
             response.status(204);
             return "";
