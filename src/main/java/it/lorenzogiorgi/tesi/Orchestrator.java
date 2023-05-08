@@ -3,8 +3,9 @@ package it.lorenzogiorgi.tesi;
 import com.google.gson.Gson;
 import it.lorenzogiorgi.tesi.api.*;
 import it.lorenzogiorgi.tesi.common.*;
-import it.lorenzogiorgi.tesi.dns.DNSUpdater;
+import it.lorenzogiorgi.tesi.dns.DNSManagement;
 import it.lorenzogiorgi.tesi.envoy.EnvoyConfigurationServer;
+import jdk.nashorn.internal.runtime.regexp.joni.Config;
 import org.apache.logging.log4j.*;
 import spark.Request;
 import spark.Response;
@@ -17,7 +18,7 @@ public class Orchestrator {
 
     public static Gson gson;
 
-    private static Logger logger = LogManager.getLogger();
+    private static Logger logger = LogManager.getLogger(Orchestrator.class.getName());
 
     public static void main(String[] arg) {
         gson = new Gson();
@@ -27,7 +28,7 @@ public class Orchestrator {
         Spark.port(Configuration.ORCHESTRATOR_API_PORT);
         Spark.post("/login", (Orchestrator::login));
         Spark.post("/logout", (Orchestrator::logout));
-        Spark.post("/migrate/:user",(Orchestrator::migrate));
+        Spark.post("/migrate/:username",(Orchestrator::migrate));
         Spark.get("/envoyconfiguration/:envoyNodeID", Orchestrator::serveEnvoyConfiguration);
 
         Spark.get("/test", ((request, response) -> "TEST"));
@@ -44,7 +45,7 @@ public class Orchestrator {
 
 
     private static void inizializeAutheniticationServers() {
-        DNSUpdater.updateDNSRecord(Configuration.PLATFORM_DOMAIN, Configuration.PLATFORM_AUTHENTICATION_DOMAIN, "A", 600, Configuration.ORCHESTRATOR_API_IP);
+        DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, Configuration.PLATFORM_AUTHENTICATION_DOMAIN, "A", 600, Configuration.ORCHESTRATOR_API_IP);
     }
 
 
@@ -99,8 +100,26 @@ public class Orchestrator {
     }
 
     private static void initializeEdgeNodes() {
-        Configuration.edgeNodes.values().forEach(EdgeNode::initialize);
-        System.out.println("Edge nodes initialized");
+        List<Thread> threadList = new ArrayList<>();
+        for(EdgeNode edgeNode: Configuration.edgeNodes.values()) {
+            Thread t = new Thread(edgeNode::initialize);
+            t.setName(edgeNode.getEdgeId());
+            threadList.add(t);
+            t.start();
+        }
+
+        for (Thread thread : threadList) {
+            try {
+                thread.join(180000);
+            } catch (InterruptedException e) {
+                String edgeId = thread.getName();
+                //since edge node has not been successfully initialized, it is removed from available ones.
+                Configuration.edgeNodes.remove(edgeId);
+                //log
+                logger.warn("EdgeNode "+edgeId+ " has not been initialized correctly");
+            }
+        }
+        logger.info("Edge nodes initialized");
     }
 
     private static List<String> findNearestMECNode() {
@@ -117,63 +136,74 @@ public class Orchestrator {
 
         //check username and password
         User user= Configuration.users.get(loginRequest.getUsername());
-        if(user==null || user.getPassword()==null || !user.getPassword().equals(loginRequest.getPassword())) {
+
+        //check if user exists
+        if(user==null) {
             response.status(401);
             response.type("application/json");
             return gson.toJson(new LoginResponse(false, null));
         }
 
-        //if user was already logged, we need to destroy all previously allocated resources
-        if(user.getCurrentEdgeNodeId()!=null) {
-            Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).deallocateUserResources(user);
-        }
-        if(user.getFormerEdgeNodeId()!=null) {
-            Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).deallocateUserResources(user);
-        }
-        user.setCurrentEdgeNodeId(null);
-        user.setFormerEdgeNodeId(null);
-        user.setCookie(null);
-
-
-        //compute authId cookie
-        byte[] array= new byte[32];
-        new Random().nextBytes(array);
-        String authId= toHexString(array);
-        System.out.println(authId);
-
-        //compute domain name for the user
-        String domainName = user.getUsername()+"."+Configuration.PLATFORM_USER_BASE_DOMAIN;
-
-        //get nearest MECNode
-        List<String> nearestEdgeNodeIDs = findNearestMECNode();
-
-        //resource allocation
-        boolean allocated = false;
-        for(String edgeId: nearestEdgeNodeIDs) {
-            EdgeNode edgeNode = Configuration.edgeNodes.get(edgeId);
-            allocated = edgeNode.allocateUserResources(user.getUsername(), authId);
-            if(allocated) {
-                //set DNS domain
-                DNSUpdater.updateDNSRecord(Configuration.PLATFORM_DOMAIN, domainName, "A",  5, edgeNode.getIpAddress());
-                //set EdgeNodeId and cookie in User data structure
-                user.setCurrentEdgeNodeId(edgeId);
-                user.setCookie(authId);
-                break;
+        synchronized(user) {
+            //check password
+            if(user.getPassword()==null || !user.getPassword().equals(loginRequest.getPassword())) {
+                response.status(401);
+                response.type("application/json");
+                return gson.toJson(new LoginResponse(false, null));
             }
-        }
 
-        //allocation failed on all near edge node
-        if(!allocated) {
-            response.status(503);
+            //if user was already logged, we need to destroy all previously allocated resources
+            if (user.getCurrentEdgeNodeId() != null) {
+                Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).deallocateUserResources(user);
+            }
+            if (user.getFormerEdgeNodeId() != null) {
+                Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).deallocateUserResources(user);
+            }
+            user.setCurrentEdgeNodeId(null);
+            user.setFormerEdgeNodeId(null);
+            user.setCookie(null);
+
+
+            //compute authId cookie
+            byte[] array = new byte[32];
+            new Random().nextBytes(array);
+            String authId = toHexString(array);
+            System.out.println(authId);
+
+            //compute domain name for the user
+            String domainName = user.getUsername() + "." + Configuration.PLATFORM_USER_BASE_DOMAIN;
+
+            //get nearest MECNode
+            List<String> nearestEdgeNodeIDs = findNearestMECNode();
+
+            //resource allocation
+            boolean allocated = false;
+            for (String edgeId : nearestEdgeNodeIDs) {
+                EdgeNode edgeNode = Configuration.edgeNodes.get(edgeId);
+                allocated = edgeNode.allocateUserResources(user.getUsername(), authId);
+                if (allocated) {
+                    //set DNS domain
+                    DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, domainName, "A", 50, edgeNode.getIpAddress());
+                    //set EdgeNodeId and cookie in User data structure
+                    user.setCurrentEdgeNodeId(edgeId);
+                    user.setCookie(authId);
+                    break;
+                }
+            }
+
+            //allocation failed on all near edge node
+            if (!allocated) {
+                response.status(503);
+                response.type("application/json");
+                return gson.toJson(new LoginResponse(false, null));
+            }
+
+
+            response.status(200);
             response.type("application/json");
-            return gson.toJson(new LoginResponse(false, null));
+            response.cookie("." + Configuration.PLATFORM_DOMAIN, "/", "authID", authId, 3600, false, false);
+            return gson.toJson(new LoginResponse(true, domainName));
         }
-
-
-        response.status(200);
-        response.type("application/json");
-        response.cookie("."+Configuration.PLATFORM_DOMAIN, "/", "authID", authId, 3600, false, false);
-        return gson.toJson(new LoginResponse(true, domainName));
     }
 
     private static String logout(Request request, Response response) {
@@ -183,84 +213,108 @@ public class Orchestrator {
         String username = logoutRequest.getUsername();
 
         User user = Configuration.users.get(username);
-        if(user==null || user.getCookie()==null || !user.getCookie().equals(userCookie)) {
+
+        //check if user exists
+        if (user == null) {
             response.status(401);
             response.type("application/json");
             return gson.toJson(new LogoutResponse());
         }
 
-        //delete route and cluster related to a user
-        Orchestrator.envoyConfigurationServer.deleteAllUserResourcesFromProxy(user.getUsername(), user.getCurrentEdgeNodeId());
-        if(user.getFormerEdgeNodeId()!=null) {
-            Orchestrator.envoyConfigurationServer.deleteAllUserResourcesFromProxy(user.getUsername(), user.getFormerEdgeNodeId());
+        synchronized (user) {
+            //check if user is logged and the request has the correct cookie
+            if (user.getCookie() == null || !user.getCookie().equals(userCookie)) {
+                response.status(401);
+                response.type("application/json");
+                return gson.toJson(new LogoutResponse());
+            }
+
+            //delete route and cluster related to a user
+            Orchestrator.envoyConfigurationServer.deleteAllUserResourcesFromProxy(user.getUsername(), user.getCurrentEdgeNodeId());
+            if (user.getFormerEdgeNodeId() != null) {
+                Orchestrator.envoyConfigurationServer.deleteAllUserResourcesFromProxy(user.getUsername(), user.getFormerEdgeNodeId());
+            }
+
+            //remove containers
+            Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).deallocateUserResources(user);
+
+            //remove dns record
+            String domainName = user.getUsername() + "." + Configuration.PLATFORM_USER_BASE_DOMAIN;
+            DNSManagement.deleteDNSRecord(Configuration.PLATFORM_DOMAIN, domainName, "A");
+
+            //reset fields in user data structure
+            user.setCurrentEdgeNodeId(null);
+            user.setFormerEdgeNodeId(null);
+            user.setCookie(null);
+
+            response.status(200);
+            return gson.toJson(new LogoutResponse());
         }
-
-        //remove containers
-        Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).deallocateUserResources(user);
-
-        //reset fields in user data structure
-        user.setCurrentEdgeNodeId(null);
-        user.setFormerEdgeNodeId(null);
-        user.setCookie(null);
-
-        response.status(200);
-        return gson.toJson(new LogoutResponse());
     }
 
 
     private static String migrate(Request request, Response response) {
         String username = request.params(":username");
-
         MigrationRequest migrationRequest = gson.fromJson(request.body(), MigrationRequest.class);
-
         List<String> edgeNodeIDs = migrationRequest.getEdgeNodeList();
+        logger.info("Migration request for user:"+username+ " EdgeNodeList:"+edgeNodeIDs);
 
         //find user to migrate
         User user = Configuration.users.get(username);
 
-        //user not found or not logged (cookie is null)
-        if(user==null || user.getCookie()==null) {
+        //check if user exists
+        if(user==null ) {
             response.status(401);
             response.type("application/json");
             return "";
         }
 
-        //if user is already on the best MEC, no need to migrate
-        if(user.getCurrentEdgeNodeId().equals(edgeNodeIDs.get(0))) {
+        synchronized (user) {
+            //check if user is not logged (cookie is null)
+            if(user.getCookie()==null) {
+                response.status(401);
+                response.type("application/json");
+                return "";
+            }
+
+            //if user is already on the best MEC, no need to migrate
+            if (user.getCurrentEdgeNodeId().equals(edgeNodeIDs.get(0))) {
+                response.status(204);
+                return "";
+            }
+
+            String domainName = user.getUsername() + "." + Configuration.PLATFORM_USER_BASE_DOMAIN;
+
+            //resource allocation
+            boolean allocated = false;
+            for (String edgeId : edgeNodeIDs) {
+                EdgeNode edgeNode = Configuration.edgeNodes.get(edgeId);
+                if (edgeNode == null) continue;
+                allocated = Configuration.edgeNodes.get(edgeId).allocateUserResources(user.getUsername(), user.getCookie());
+                if (allocated) {
+                    //set DNS domain
+                    DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, domainName, "A", 50, edgeNode.getIpAddress());
+                    //set EdgeNodeId and cookie in User data structure
+                    user.setFormerEdgeNodeId(user.getCurrentEdgeNodeId());
+                    user.setCurrentEdgeNodeId(edgeId);
+                    break;
+                }
+            }
+
+            if (!allocated) {
+                response.status(503);
+                response.type("application/json");
+                return "";
+            }
+            //redirect route to new Edge node
+            envoyConfigurationServer.convertRouteToRedirect(username, user.getFormerEdgeNodeId(), user.getCurrentEdgeNodeId());
+
+            //delete user resources on old node
+            Configuration.edgeNodes.get(user.getFormerEdgeNodeId()).deallocateUserResources(user);
+
             response.status(204);
             return "";
         }
-
-        String domainName = user.getUsername() + "." + Configuration.PLATFORM_USER_BASE_DOMAIN;
-
-        //resource allocation
-        boolean allocated = false;
-        for(String edgeId: edgeNodeIDs) {
-            EdgeNode edgeNode = Configuration.edgeNodes.get(edgeId);
-            allocated = Configuration.edgeNodes.get(edgeId).allocateUserResources(user.getUsername(), user.getCookie());
-            if(allocated) {
-                //set DNS domain
-                DNSUpdater.updateDNSRecord(Configuration.PLATFORM_DOMAIN, domainName, "A",  5, edgeNode.getIpAddress());
-                //set EdgeNodeId and cookie in User data structure
-                user.setFormerEdgeNodeId(user.getCurrentEdgeNodeId());
-                user.setCurrentEdgeNodeId(edgeId);
-                break;
-            }
-        }
-
-        if(!allocated) {
-            response.status(503);
-            response.type("application/json");
-            return "";
-        }
-        //redirect route to new Edge node
-        envoyConfigurationServer.convertRouteToRedirect(username, user.getFormerEdgeNodeId(), user.getCurrentEdgeNodeId());
-
-        //delete user resources on old node
-        Configuration.edgeNodes.get(user.getFormerEdgeNodeId()).deallocateUserResources(user);
-
-        response.status(204);
-        return "";
 
     }
 
