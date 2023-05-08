@@ -10,7 +10,7 @@ import java.util.List;
 
 
 
-public  class DNSUpdater {
+public class DNSManagement {
     private static final OkHttpClient client;
     private static final MediaType JSON = MediaType.parse("application/json; charset=utf-8");
     static {
