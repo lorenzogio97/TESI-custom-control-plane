@@ -4,7 +4,6 @@ public class Microservice {
     private String name;
     private String imageName;
     private String imageTag;
-    private String endpointMapping;
     private int exposedPort;
     private double maxCPU;
     private double maxMemory;
@@ -23,14 +22,6 @@ public class Microservice {
 
     public void setImageName(String imageName) {
         this.imageName = imageName;
-    }
-
-    public String getEndpointMapping() {
-        return endpointMapping;
-    }
-
-    public void setEndpointMapping(String endpointMapping) {
-        this.endpointMapping = endpointMapping;
     }
 
     public double getMaxCPU() {
@@ -67,9 +58,11 @@ public class Microservice {
 
     @Override
     public String toString() {
-        return "Service{" +
-                "imageName='" + imageName + '\'' +
-                ", endpointMapping='" + endpointMapping + '\'' +
+        return "Microservice{" +
+                "name='" + name + '\'' +
+                ", imageName='" + imageName + '\'' +
+                ", imageTag='" + imageTag + '\'' +
+                ", exposedPort=" + exposedPort +
                 ", maxCPU=" + maxCPU +
                 ", maxMemory=" + maxMemory +
                 '}';
