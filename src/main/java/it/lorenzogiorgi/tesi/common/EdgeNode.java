@@ -14,7 +14,9 @@ import com.github.dockerjava.core.DockerClientImpl;
 import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
 import com.github.dockerjava.transport.DockerHttpClient;
 import it.lorenzogiorgi.tesi.Orchestrator;
-import it.lorenzogiorgi.tesi.dns.DNSUpdater;
+import it.lorenzogiorgi.tesi.dns.DNSManagement;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.io.FileWriter;
@@ -29,6 +31,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class EdgeNode {
+    private static Logger logger = LogManager.getLogger(EdgeNode.class.getName());
     private String edgeId;
     private String ipAddress;
     private int dockerPort;
@@ -92,6 +95,7 @@ public class EdgeNode {
 
 
     public boolean allocateUserResources(String username, String authCookie)  {
+        logger.info("Resource allocation on EdgeNode: "+edgeId+ " for user: "+username);
         //get User resource to allocate
         User user = Configuration.users.get(username);
 
@@ -118,22 +122,24 @@ public class EdgeNode {
         //connect to Docker demon on the target MECNode
         DockerClient dockerClient = getDockerClient();
 
+        logger.info("Pulling images on EdgeNode: "+edgeId+ " for user: "+username);
         //pull required images
         for (Application application: applicationList) {
             for (Microservice microservice : application.getMicroservices()) {
-                System.out.println("Pulling " + microservice.getImageName() + " for user " + user.getUsername());
+                logger.trace("Pulling " + microservice.getImageName() + " on EdgeNode: "+edgeId+" for user: " + user.getUsername());
                 try {
                     dockerClient.pullImageCmd(microservice.getImageName())
                             .withTag(microservice.getImageTag())
                             .exec(new PullImageResultCallback())
                             .awaitCompletion();
                 } catch (InterruptedException e) {
-                    //cleanup
+                    logger.warn("Pulling images on EdgeNode: "+edgeId+ " for user: "+username+ " failed. Cleanup.");
+                    cleanupDanglingImages();
                     return false;
                 }
             }
         }
-
+        logger.info("Containers creation on EdgeNode: "+edgeId+ " for user: "+username);
         //run containers with the options specified
         for (Application application: applicationList) {
             for (Microservice microservice : application.getMicroservices()) {
@@ -148,14 +154,15 @@ public class EdgeNode {
                                     .withCpuQuota((long) (microservice.getMaxCPU() * 100000))
                                     .withMemory((long) microservice.getMaxMemory() * 1000 * 1000))
                             .exec();
+                    // start the container
+                    dockerClient.startContainerCmd(container.getId()).exec();
                 } catch (Exception e) {
-                    //cleanup
-
+                    logger.warn("Containers creation failed on EdgeNode: "+edgeId+ " for user: "+username);
+                    deallocateUserResources(username);
                     return false;
                 }
 
-                // start the container
-                dockerClient.startContainerCmd(container.getId()).exec();
+
 
                 //get ip of the created container
                 InspectContainerResponse inspectContainerResponse = dockerClient.inspectContainerCmd(container.getId()).exec();
@@ -164,15 +171,18 @@ public class EdgeNode {
                 //get Envoy front proxy ID
                 String proxyID = this.getEdgeId();
 
+                //compute the endpoint for the microservice
+                String endpoint = "/"+application.getName()+"/"+microservice.getName();
+
                 //set envoy clusters and routes
                 Orchestrator.envoyConfigurationServer.addListenerToProxy(proxyID, "default", "0.0.0.0", 80);
                 Orchestrator.envoyConfigurationServer.addClusterToProxy(proxyID, user.getUsername(), microservice.getName(), ip, microservice.getExposedPort());
-                Orchestrator.envoyConfigurationServer.addRouteToProxy(proxyID, user.getUsername(), Configuration.PLATFORM_USER_BASE_DOMAIN,
-                        "default", microservice.getEndpointMapping(), authCookie, microservice.getName());
+                Orchestrator.envoyConfigurationServer.addRouteToProxy(proxyID, user.getUsername(), Configuration.PLATFORM_DOMAIN,
+                        "default", endpoint, authCookie, microservice.getName());
 
             }
         }
-
+        logger.info("Containers created on EdgeNode: "+edgeId+ " for user: "+username);
         return true;
 
     }
@@ -193,6 +203,8 @@ public class EdgeNode {
     }
 
     public void cleanupContainer() {
+        logger.info("Cleanup container of node "+edgeId+ " started");
+
         DockerClient dockerClient = getDockerClient();
 
         //obtain container list
@@ -201,24 +213,24 @@ public class EdgeNode {
                 .withShowAll(true)
                 .exec();
 
-        System.out.println("Cleanup container of node "+edgeId);
-        System.out.println("Listed container to be removed: ");
-        for (Container container: containers) {
-            System.out.println(container.getImage());
-        }
 
         //kill and remove all container
         for(Container container: containers) {
-            if(!container.getState().equals("exited")) {
-                dockerClient.killContainerCmd(container.getId()).exec();
+            try {
+                if (!container.getState().equals("exited")) {
+                    dockerClient.killContainerCmd(container.getId()).exec();
+                }
+                dockerClient.removeContainerCmd(container.getId()).exec();
+            } catch (NotFoundException nfe) {
+                logger.trace("Container ID:"+container.getId() + " not found");
             }
-            dockerClient.removeContainerCmd(container.getId()).exec();
         }
 
-        System.out.println("cleanup made");
+        logger.info("Cleanup container of node "+edgeId+ " done");
     }
 
     public void cleanupDanglingImages() {
+        logger.info("Cleanup images of node "+edgeId+" started");
         DockerClient dockerClient = getDockerClient();
 
         //cleanup dangling images
@@ -231,9 +243,12 @@ public class EdgeNode {
                 nfe.printStackTrace();
             }
         }
+
+        logger.info("Cleanup container of node "+edgeId + " done");
     }
 
     public void initializeFrontProxy() {
+        logger.info("Envoy front proxy creation of node "+edgeId+ " started");
         DockerClient dockerClient = getDockerClient();
 
         //create Dockerfile
@@ -272,12 +287,15 @@ public class EdgeNode {
                     .exec(new BuildImageResultCallback())
                     .awaitImageId();
             dockerfile.delete();
-
+            logger.info("Envoy custom image build of node "+edgeId+ " done");
         } catch (IOException e) {
+            logger.error("Envoy custom image build of node "+ edgeId+" failed");
             throw new RuntimeException(e);
         }
 
         //create Envoy container
+        logger.info("Envoy container creation of node "+edgeId+ " started");
+
         CreateContainerResponse container = dockerClient
                 .createContainerCmd(imageId)
                 .withName("envoy-"+edgeId)
@@ -299,9 +317,17 @@ public class EdgeNode {
         // start the container
         dockerClient.startContainerCmd(container.getId()).exec();
 
+        logger.info("Envoy container creation of node "+edgeId+ " done");
+
         //update DNS entry for Edge Proxy (useful for redirect)
         String proxyDomain = edgeId+"."+Configuration.PLATFORM_NODE_BASE_DOMAIN;
-        DNSUpdater.updateDNSRecord(Configuration.PLATFORM_DOMAIN, proxyDomain, "A",  600, this.getIpAddress());
+        if(DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, proxyDomain, "A",  600, this.getIpAddress())) {
+            logger.info("DNS record for node "+edgeId+ " added to DNS Server");
+        } else {
+            logger.warn("Error during DNS record add/update for node "+edgeId);
+        }
+
+        logger.info("Envoy front proxy creation of node "+edgeId+ " done");
     }
 
     public void initialize() {
@@ -310,8 +336,8 @@ public class EdgeNode {
         cleanupDanglingImages();
     }
 
-    public void deallocateUserResources(User user) {
-
+    public void deallocateUserResources(String username) {
+        logger.info("Containers deallocation on EdgeNode: "+edgeId+ " for user: "+username);
         //delete all container related to the user
         DockerClient dockerClient = getDockerClient();
 
@@ -319,7 +345,7 @@ public class EdgeNode {
         List<Container> containers = dockerClient.listContainersCmd()
                 .withShowSize(true)
                 .withShowAll(true)
-                .withNameFilter(Collections.singletonList(user.getUsername() + "-"))
+                .withNameFilter(Collections.singletonList(username + "-"))
                 .exec();
 
         //kill and remove all user container
@@ -329,6 +355,6 @@ public class EdgeNode {
             }
             dockerClient.removeContainerCmd(container.getId()).exec();
         }
-
+        logger.info("Containers deallocation completed on EdgeNode: "+edgeId+ " for user: "+username);
     }
 }
