@@ -31,7 +31,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class EdgeNode {
-    private static Logger logger = LogManager.getLogger(EdgeNode.class.getName());
+    private static final Logger logger = LogManager.getLogger(EdgeNode.class.getName());
     private String edgeId;
     private String ipAddress;
     private int dockerPort;
@@ -143,7 +143,7 @@ public class EdgeNode {
         //run containers with the options specified
         for (Application application: applicationList) {
             for (Microservice microservice : application.getMicroservices()) {
-                CreateContainerResponse container = null;
+                CreateContainerResponse container= null;
                 try {
                     container = dockerClient
                             .createContainerCmd(microservice.getImageName() + ":" + microservice.getImageTag())
@@ -306,7 +306,7 @@ public class EdgeNode {
                 )))
                 .withHostConfig(HostConfig.newHostConfig()
                         .withRestartPolicy(RestartPolicy.unlessStoppedRestart())
-                        .withPortBindings(new ArrayList<PortBinding>(Arrays.asList(
+                        .withPortBindings(new ArrayList<>(Arrays.asList(
                                         PortBinding.parse(this.getIpAddress()+":80/tcp:80"),
                                         PortBinding.parse(this.getIpAddress()+":10000/tcp:10000"))
                                 )

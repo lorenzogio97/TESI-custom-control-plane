@@ -222,7 +222,7 @@ public class SnapshotInstance {
         ArrayList<Cluster> clusterList = new ArrayList<>(lastSnapshot.clusters().resources().values());
         ArrayList<Listener> listenerList = new ArrayList<>(lastSnapshot.listeners().resources().values());
 
-        List<RouteConfiguration> newRouteConfigurationList = new ArrayList<RouteConfiguration>();
+        List<RouteConfiguration> newRouteConfigurationList = new ArrayList<>();
         for(RouteConfiguration rc : routeConfigurationList) {
             RouteConfiguration.Builder newRouteConfigurationBuilder = RouteConfiguration.newBuilder()
                     .setName(rc.getName());

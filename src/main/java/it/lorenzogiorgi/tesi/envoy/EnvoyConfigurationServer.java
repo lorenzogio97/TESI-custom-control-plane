@@ -32,7 +32,7 @@ public class EnvoyConfigurationServer {
     private final Server server;
     private final ConcurrentHashMap<String, SnapshotInstance> proxiesSnapshot;
 
-    private Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(EnvoyConfigurationServer.class.getName());
     public EnvoyConfigurationServer() {
         proxiesSnapshot = new ConcurrentHashMap<>();
         // la lamda server per definire come ottenere il node-group dal node id,  in pratica è il criterio per
@@ -52,13 +52,17 @@ public class EnvoyConfigurationServer {
         try {
             server.start();
         } catch (IOException e) {
+            logger.fatal("Envoy configuration server not started");
             throw new RuntimeException(e);
         }
+
+
 
         for(String edgeId: Configuration.edgeNodes.keySet()){
             proxiesSnapshot.put(edgeId, new SnapshotInstance());
         }
 
+        logger.info("Envoy configuration server started successfully");
     }
 
 

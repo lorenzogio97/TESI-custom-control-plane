@@ -2,23 +2,28 @@ package it.lorenzogiorgi.tesi;
 
 import com.google.gson.Gson;
 import it.lorenzogiorgi.tesi.api.*;
-import it.lorenzogiorgi.tesi.common.*;
+import it.lorenzogiorgi.tesi.common.Configuration;
+import it.lorenzogiorgi.tesi.common.EdgeNode;
+import it.lorenzogiorgi.tesi.common.User;
 import it.lorenzogiorgi.tesi.dns.DNSManagement;
 import it.lorenzogiorgi.tesi.envoy.EnvoyConfigurationServer;
-import jdk.nashorn.internal.runtime.regexp.joni.Config;
-import org.apache.logging.log4j.*;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import spark.Request;
 import spark.Response;
 import spark.Spark;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
 
 public class Orchestrator {
     public static EnvoyConfigurationServer envoyConfigurationServer;
 
     public static Gson gson;
 
-    private static Logger logger = LogManager.getLogger(Orchestrator.class.getName());
+    private static final Logger logger = LogManager.getLogger(Orchestrator.class.getName());
 
     public static void main(String[] arg) {
         gson = new Gson();
