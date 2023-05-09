@@ -150,6 +150,7 @@ public class EdgeNode {
                             .withName(user.getUsername() + "-" + microservice.getName())
                             .withHostName(user.getUsername() + "-" + microservice.getName())
                             .withHostConfig(HostConfig.newHostConfig()
+                                    .withRestartPolicy(RestartPolicy.unlessStoppedRestart())
                                     .withCpuPeriod(100000L)
                                     .withCpuQuota((long) (microservice.getMaxCPU() * 100000))
                                     .withMemory((long) microservice.getMaxMemory() * 1000 * 1000))
@@ -161,8 +162,6 @@ public class EdgeNode {
                     deallocateUserResources(username);
                     return false;
                 }
-
-
 
                 //get ip of the created container
                 InspectContainerResponse inspectContainerResponse = dockerClient.inspectContainerCmd(container.getId()).exec();
@@ -299,7 +298,6 @@ public class EdgeNode {
         CreateContainerResponse container = dockerClient
                 .createContainerCmd(imageId)
                 .withName("envoy-"+edgeId)
-                //.withExposedPorts(ExposedPort.tcp(80))
                 .withExposedPorts(new ArrayList<>(Arrays.asList(
                         ExposedPort.tcp(80),
                         ExposedPort.tcp(10000)

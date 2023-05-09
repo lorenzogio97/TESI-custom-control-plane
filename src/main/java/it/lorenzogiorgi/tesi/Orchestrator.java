@@ -28,7 +28,8 @@ public class Orchestrator {
     public static void main(String[] arg) {
         gson = new Gson();
         envoyConfigurationServer = new EnvoyConfigurationServer();
-        logger.info("Envoy server initialized");
+        //initialize DNS for Auth, Orchestrator and Envoy conf server.
+        initializeDNS();
         Spark.ipAddress(Configuration.ORCHESTRATOR_API_IP);
         Spark.port(Configuration.ORCHESTRATOR_API_PORT);
         Spark.post("/login", (Orchestrator::login));
@@ -36,23 +37,21 @@ public class Orchestrator {
         Spark.post("/migrate/:username",(Orchestrator::migrate));
         Spark.get("/envoyconfiguration/:envoyNodeID", Orchestrator::serveEnvoyConfiguration);
 
-        Spark.get("/test", ((request, response) -> "TEST"));
         Spark.awaitInitialization();
 
         //initialize edge nodes
         initializeEdgeNodes();
 
-        //initialize Authenitication Server (DNS mapping with Auth URL)
-        inizializeAutheniticationServers();
 
         envoyConfigurationServer.awaitTermination();
     }
 
 
-    private static void inizializeAutheniticationServers() {
+    private static void initializeDNS() {
         DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, Configuration.PLATFORM_AUTHENTICATION_DOMAIN, "A", 600, Configuration.ORCHESTRATOR_API_IP);
+        DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, Configuration.PLATFORM_ORCHESTRATOR_DOMAIN, "A", 600, Configuration.ORCHESTRATOR_API_IP);
+        DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, Configuration.PLATFORM_ENVOY_CONF_SERVER_DOMAIN, "A", 600, Configuration.ENVOY_CONFIGURATION_SERVER_IP);
     }
-
 
 
     private static String serveEnvoyConfiguration(Request request, Response response) {
@@ -97,7 +96,7 @@ public class Orchestrator {
                 "        - endpoint:\n" +
                 "            address:\n" +
                 "              socket_address:\n" +
-                "                address: "+Configuration.ENVOY_CONFIGURATION_SERVER_HOSTNAME+"\n" +
+                "                address: "+Configuration.ENVOY_CONFIGURATION_SERVER_IP+"\n" +
                 "                port_value: "+Configuration.ENVOY_CONFIGURATION_SERVER_PORT+"\n" +
                 "    http2_protocol_options: {}\n" +
                 "    name: xds_cluster\n" +

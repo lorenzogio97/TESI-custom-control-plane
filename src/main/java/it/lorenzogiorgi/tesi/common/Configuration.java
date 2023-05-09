@@ -32,7 +32,7 @@ public class Configuration {
      * Envoy control plane server configuration
      */
     public static int ENVOY_CONFIGURATION_SERVER_PORT;
-    public static String ENVOY_CONFIGURATION_SERVER_HOSTNAME;
+    public static String ENVOY_CONFIGURATION_SERVER_IP;
 
     /**
      * Orchestrator API configuration
@@ -44,6 +44,8 @@ public class Configuration {
      * Platform domain configuration
      */
     public static String PLATFORM_DOMAIN;
+    public static String PLATFORM_ENVOY_CONF_SERVER_DOMAIN;
+    public static String PLATFORM_ORCHESTRATOR_DOMAIN;
     public static String PLATFORM_AUTHENTICATION_DOMAIN;
     public static String PLATFORM_USER_BASE_DOMAIN;
     public static String PLATFORM_NODE_BASE_DOMAIN;
