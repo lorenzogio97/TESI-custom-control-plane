@@ -3,6 +3,8 @@ package it.lorenzogiorgi.tesi.envoy;
 import com.google.common.collect.ImmutableList;
 import io.envoyproxy.controlplane.cache.v3.Snapshot;
 import io.envoyproxy.envoy.config.cluster.v3.Cluster;
+import io.envoyproxy.envoy.config.core.v3.HeaderValue;
+import io.envoyproxy.envoy.config.core.v3.HeaderValueOption;
 import io.envoyproxy.envoy.config.listener.v3.Listener;
 import io.envoyproxy.envoy.config.route.v3.*;
 import it.lorenzogiorgi.tesi.common.Configuration;
@@ -48,7 +50,7 @@ public class SnapshotInstance {
         if(!((resource instanceof Cluster) || (resource instanceof Listener) || (resource instanceof RouteConfiguration)))
             return false;
 
-        System.out.println("last version before "+lastVersion);
+        //System.out.println("last version before "+lastVersion);
         List<Cluster> clusterList = new ArrayList<>(lastSnapshot.clusters().resources().values());
         List<Listener> listenerList= new ArrayList<>(lastSnapshot.listeners().resources().values());
         List<RouteConfiguration> routeConfigurationList= new ArrayList<>((lastSnapshot.routes().resources().values()));
@@ -75,7 +77,7 @@ public class SnapshotInstance {
                         ImmutableList.of(),
                         String.valueOf(++lastVersion)
                 );
-                System.out.println("last version after "+lastVersion);
+                //System.out.println("last version after "+lastVersion);
                 return true;
             }
 
@@ -118,7 +120,7 @@ public class SnapshotInstance {
                     .stream()
                     .filter(r -> !r.getName().equals(routeToAdd.getName()))
                     .collect(Collectors.toList());
-            newRouteList.add(routeToAdd);
+            newRouteList.add(0,routeToAdd);
 
             //recreate the VirtualHost with the new Route list
             VirtualHost newVirtualHost = VirtualHost.newBuilder()
@@ -239,8 +241,14 @@ public class SnapshotInstance {
                                                 RouteMatch.newBuilder()
                                                         .setPathSeparatedPrefix(r.getMatch().getPathSeparatedPrefix())
                                                         .addAllHeaders(r.getMatch().getHeadersList()))
-                                        .setRedirect(RedirectAction.newBuilder().setHostRedirect(destinationProxyId +"."+ Configuration.PLATFORM_NODE_BASE_DOMAIN).setPortRedirect(80))
-
+                                        .addResponseHeadersToAdd(HeaderValueOption.newBuilder()
+                                                .setHeader(HeaderValue.newBuilder()
+                                                        .setKey("Alt-Svc")
+                                                        .setValue("h2=\""+destinationProxyId+"."+Configuration.PLATFORM_NODE_BASE_DOMAIN+":443\";")
+                                                        )
+                                                .setAppendAction(HeaderValueOption.HeaderAppendAction.OVERWRITE_IF_EXISTS_OR_ADD)
+                                                )
+                                        .setRoute(r.getRoute())
                         );
                     } else {
                         newVirtualHost.addRoutes(r);
