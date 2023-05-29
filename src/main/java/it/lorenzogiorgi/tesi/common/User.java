@@ -10,6 +10,7 @@ public class User {
     private String currentEdgeNodeId;
 
     private String formerEdgeNodeId;
+    private UserStatus status;
 
     public String getUsername() {
         return username;
@@ -59,6 +60,13 @@ public class User {
         this.formerEdgeNodeId = formerEdgeNodeId;
     }
 
+    public UserStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(UserStatus status) {
+        this.status = status;
+    }
 
     @Override
     public String toString() {

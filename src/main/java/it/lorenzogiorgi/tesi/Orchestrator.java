@@ -1,9 +1,11 @@
 package it.lorenzogiorgi.tesi;
 
 import com.google.gson.Gson;
+import io.envoyproxy.controlplane.cache.TestResources;
 import it.lorenzogiorgi.tesi.api.*;
 import it.lorenzogiorgi.tesi.common.Configuration;
 import it.lorenzogiorgi.tesi.common.EdgeNode;
+import it.lorenzogiorgi.tesi.common.UserStatus;
 import it.lorenzogiorgi.tesi.common.User;
 import it.lorenzogiorgi.tesi.dns.DNSManagement;
 import it.lorenzogiorgi.tesi.envoy.EnvoyConfigurationServer;
@@ -19,22 +21,21 @@ import java.util.List;
 import java.util.Random;
 
 public class Orchestrator {
-    public static EnvoyConfigurationServer envoyConfigurationServer;
+    public static EnvoyConfigurationServer envoyConfigurationServer= new EnvoyConfigurationServer();
 
-    public static Gson gson;
+    public static Gson gson=new Gson();
 
     private static final Logger logger = LogManager.getLogger(Orchestrator.class.getName());
 
     public static void main(String[] arg) {
-        gson = new Gson();
-        envoyConfigurationServer = new EnvoyConfigurationServer();
+
         //initialize DNS for Auth, Orchestrator and Envoy conf server.
         initializeDNS();
+        // keystone creation from certificate: https://stackoverflow.com/questions/906402/how-to-import-an-existing-x-509-certificate-and-private-key-in-java-keystore-to
+        Spark.secure("./src/main/resources/server.keystore", "lorenzo", null, null);
         Spark.ipAddress(Configuration.ORCHESTRATOR_API_IP);
         Spark.port(Configuration.ORCHESTRATOR_API_PORT);
-        Spark.post("/login", (Orchestrator::login));
-        Spark.post("/logout", (Orchestrator::logout));
-        Spark.post("/migrate/:username",(Orchestrator::migrate));
+        Spark.staticFileLocation("/tls");
         Spark.get("/envoyconfiguration/:envoyNodeID", Orchestrator::serveEnvoyConfiguration);
 
         Spark.awaitInitialization();
@@ -42,7 +43,14 @@ public class Orchestrator {
         //initialize edge nodes
         initializeEdgeNodes();
 
-
+        //API for user needs to be available after Edgenode initialization
+        Spark.post("/login", (Orchestrator::login));
+        Spark.post("/logout", (Orchestrator::logout));
+        Spark.post("/migrate/:username",(Orchestrator::migrate));
+        Spark.post("/migration_feedback/:username/:edgeNodeId",(Orchestrator::finalizeMigration));
+        Spark.after((request, response) -> {
+                    logger.info(String.format("%s %s", request.requestMethod(), request.url()));
+                });
         envoyConfigurationServer.awaitTermination();
     }
 
@@ -96,10 +104,22 @@ public class Orchestrator {
                 "        - endpoint:\n" +
                 "            address:\n" +
                 "              socket_address:\n" +
-                "                address: "+Configuration.ENVOY_CONFIGURATION_SERVER_IP+"\n" +
+                "                address: "+Configuration.PLATFORM_ORCHESTRATOR_DOMAIN+"\n" +
                 "                port_value: "+Configuration.ENVOY_CONFIGURATION_SERVER_PORT+"\n" +
                 "    http2_protocol_options: {}\n" +
                 "    name: xds_cluster\n" +
+                "    type: STRICT_DNS\n"+
+                "  - connect_timeout: 5s\n" +
+                "    load_assignment:\n" +
+                "      cluster_name: orchestrator_cluster\n" +
+                "      endpoints:\n" +
+                "      - lb_endpoints:\n" +
+                "        - endpoint:\n" +
+                "            address:\n" +
+                "              socket_address:\n" +
+                "                address: "+Configuration.PLATFORM_ORCHESTRATOR_DOMAIN+"\n" +
+                "                port_value: "+Configuration.ORCHESTRATOR_API_PORT+"\n" +
+                "    name: orchestrator_cluster\n" +
                 "    type: STRICT_DNS";
     }
 
@@ -119,7 +139,6 @@ public class Orchestrator {
                 String edgeId = thread.getName();
                 //since edge node has not been successfully initialized, it is removed from available ones.
                 Configuration.edgeNodes.remove(edgeId);
-                //log
                 logger.warn("EdgeNode "+edgeId+ " has not been initialized correctly");
             }
         }
@@ -167,12 +186,10 @@ public class Orchestrator {
             user.setFormerEdgeNodeId(null);
             user.setCookie(null);
 
-
             //compute authId cookie
             byte[] array = new byte[32];
             new Random().nextBytes(array);
             String authId = toHexString(array);
-            System.out.println(authId);
 
             //compute domain name for the user
             String domainName = user.getUsername() + "." + Configuration.PLATFORM_USER_BASE_DOMAIN;
@@ -187,10 +204,11 @@ public class Orchestrator {
                 allocated = edgeNode.allocateUserResources(user.getUsername(), authId);
                 if (allocated) {
                     //set DNS domain
-                    DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, domainName, "A", 50, edgeNode.getIpAddress());
+                    DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, domainName, "A", 60, edgeNode.getIpAddress());
                     //set EdgeNodeId and cookie in User data structure
                     user.setCurrentEdgeNodeId(edgeId);
                     user.setCookie(authId);
+                    user.setStatus(UserStatus.STABLE);
                     break;
                 }
             }
@@ -250,6 +268,7 @@ public class Orchestrator {
             user.setCurrentEdgeNodeId(null);
             user.setFormerEdgeNodeId(null);
             user.setCookie(null);
+            user.setStatus(null);
 
             response.status(200);
             return gson.toJson(new LogoutResponse());
@@ -289,6 +308,9 @@ public class Orchestrator {
 
             String domainName = user.getUsername() + "." + Configuration.PLATFORM_USER_BASE_DOMAIN;
 
+            //signal that user is migrating
+            user.setStatus(UserStatus.MIGRATING);
+
             //resource allocation
             boolean allocated = false;
             for (String edgeId : edgeNodeIDs) {
@@ -297,7 +319,7 @@ public class Orchestrator {
                 allocated = Configuration.edgeNodes.get(edgeId).allocateUserResources(user.getUsername(), user.getCookie());
                 if (allocated) {
                     //set DNS domain
-                    DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, domainName, "A", 50, edgeNode.getIpAddress());
+                    DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, domainName, "A", 60, edgeNode.getIpAddress());
                     //set EdgeNodeId and cookie in User data structure
                     user.setFormerEdgeNodeId(user.getCurrentEdgeNodeId());
                     user.setCurrentEdgeNodeId(edgeId);
@@ -305,7 +327,9 @@ public class Orchestrator {
                 }
             }
 
+            //migration failed, user remain on the same node without migrate
             if (!allocated) {
+                user.setStatus(UserStatus.STABLE);
                 response.status(503);
                 response.type("application/json");
                 return "";
@@ -314,7 +338,7 @@ public class Orchestrator {
             envoyConfigurationServer.convertRouteToRedirect(username, user.getFormerEdgeNodeId(), user.getCurrentEdgeNodeId());
 
             //delete user resources on old node
-            Configuration.edgeNodes.get(user.getFormerEdgeNodeId()).deallocateUserResources(user.getUsername());
+            //Configuration.edgeNodes.get(user.getFormerEdgeNodeId()).deallocateUserResources(user.getUsername());
 
             response.status(204);
             return "";
@@ -322,6 +346,13 @@ public class Orchestrator {
 
     }
 
+
+    private static String finalizeMigration(Request request, Response response) {
+        String username = request.params(":username");
+        String edgeNodeId = request.params(":EdgeNodeId");
+        logger.info("FINALIZE MIGRATION: user: "+username+" edgeNode: "+edgeNodeId);
+        return "";
+    }
 
 
 
