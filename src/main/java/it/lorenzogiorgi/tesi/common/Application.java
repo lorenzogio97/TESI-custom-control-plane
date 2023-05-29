@@ -4,7 +4,6 @@ import java.util.List;
 
 public class Application {
     private String name;
-    private boolean sharable;
     private List<Microservice> microservices;
 
     public String getName() {
@@ -13,14 +12,6 @@ public class Application {
 
     public void setName(String name) {
         this.name = name;
-    }
-
-    public boolean isSharable() {
-        return sharable;
-    }
-
-    public void setSharable(boolean sharable) {
-        this.sharable = sharable;
     }
 
     public List<Microservice> getMicroservices() {
