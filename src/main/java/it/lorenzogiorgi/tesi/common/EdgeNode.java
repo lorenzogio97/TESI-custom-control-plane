@@ -6,6 +6,7 @@ import com.github.dockerjava.api.command.BuildImageResultCallback;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.InspectContainerResponse;
 import com.github.dockerjava.api.command.PullImageResultCallback;
+import com.github.dockerjava.api.exception.ConflictException;
 import com.github.dockerjava.api.exception.NotFoundException;
 import com.github.dockerjava.api.model.*;
 import com.github.dockerjava.core.DefaultDockerClientConfig;
@@ -150,6 +151,7 @@ public class EdgeNode {
                             .withName(user.getUsername() + "-" + microservice.getName())
                             .withHostName(user.getUsername() + "-" + microservice.getName())
                             .withHostConfig(HostConfig.newHostConfig()
+                                    .withDns(Configuration.DNS_API_IP)
                                     .withRestartPolicy(RestartPolicy.unlessStoppedRestart())
                                     .withCpuPeriod(100000L)
                                     .withCpuQuota((long) (microservice.getMaxCPU() * 100000))
@@ -174,8 +176,17 @@ public class EdgeNode {
                 String endpoint = "/"+application.getName()+"/"+microservice.getName();
 
                 //set envoy clusters and routes
-                Orchestrator.envoyConfigurationServer.addListenerToProxy(proxyID, "default", "0.0.0.0", 80);
+                //Orchestrator.envoyConfigurationServer.addListenerToProxy(proxyID, "default", "0.0.0.0", 80);
+                //Orchestrator.envoyConfigurationServer.addTLSListenerToProxy(proxyID, "default", "0.0.0.0");
                 Orchestrator.envoyConfigurationServer.addClusterToProxy(proxyID, user.getUsername(), microservice.getName(), ip, microservice.getExposedPort());
+                /*
+                if(user.getStatus()==UserStatus.MIGRATING) {
+                    Orchestrator.envoyConfigurationServer.addRouteToProxy(proxyID, user.getUsername(), Configuration.PLATFORM_NODE_BASE_DOMAIN,
+                            "default", endpoint, authCookie, microservice.getName());
+                    Orchestrator.envoyConfigurationServer.addFeedbackRouteToProxy(proxyID, user.getUsername(), Configuration.PLATFORM_USER_BASE_DOMAIN,
+                            "default", endpoint, authCookie, microservice.getName());
+                    continue;
+                }*/
                 Orchestrator.envoyConfigurationServer.addRouteToProxy(proxyID, user.getUsername(), Configuration.PLATFORM_DOMAIN,
                         "default", endpoint, authCookie, microservice.getName());
 
@@ -222,6 +233,8 @@ public class EdgeNode {
                 dockerClient.removeContainerCmd(container.getId()).exec();
             } catch (NotFoundException nfe) {
                 logger.trace("Container ID:"+container.getId() + " not found");
+            } catch (ConflictException ce) {
+                logger.trace("Container ID:"+container.getId() + " not killed (already not running)");
             }
         }
 
@@ -239,7 +252,9 @@ public class EdgeNode {
             try {
                 dockerClient.removeImageCmd(image.getId()).exec();
             } catch (NotFoundException nfe) {
-                nfe.printStackTrace();
+                logger.trace("Imgage ID:"+image.getId() + " no removed (not found)");
+            } catch (ConflictException ce) {
+                logger.trace("Imgage ID:"+image.getId() + " no removed (maybe still in use)");
             }
         }
 
@@ -251,8 +266,10 @@ public class EdgeNode {
         DockerClient dockerClient = getDockerClient();
 
         //create Dockerfile
-        String configurationFileUrl= "http://"+Configuration.ORCHESTRATOR_API_IP+":"
+        String configurationFileUrl= "https://"+Configuration.PLATFORM_ORCHESTRATOR_DOMAIN+":"
                 +Configuration.ORCHESTRATOR_API_PORT+"/envoyconfiguration/"+this.edgeId;
+        String tlsConfigurationUrl = "https://"+Configuration.PLATFORM_ORCHESTRATOR_DOMAIN+":"
+                +Configuration.ORCHESTRATOR_API_PORT;
         String dockerfileString =
                 "FROM envoyproxy/envoy-dev:latest\n" +
                         "\n" +
@@ -267,6 +284,13 @@ public class EdgeNode {
                         "RUN curl "+ configurationFileUrl +" -o envoy-configuration.yaml\n" +
                         "RUN mv ./envoy-configuration.yaml /etc/front-envoy.yaml\n" +
                         "RUN chmod go+r /etc/front-envoy.yaml\n" +
+                        "RUN mkdir /etc/certs/ \n"+
+                        "RUN curl "+ tlsConfigurationUrl+"/servercert.pem" +" -o servercert.pem\n" +
+                        "RUN mv ./servercert.pem /etc/certs/servercert.pem\n" +
+                        "RUN curl "+ tlsConfigurationUrl+"/serverkey.pem" +" -o serverkey.pem\n" +
+                        "RUN mv ./serverkey.pem /etc/certs/serverkey.pem\n" +
+                        "RUN chmod a+r /etc/certs/servercert.pem\n" +
+                        "RUN chmod a+r /etc/certs/serverkey.pem\n"+
                         "CMD [\"/usr/local/bin/envoy\", \"-c\", \"/etc/front-envoy.yaml\", \"--service-cluster\", \"front-proxy\"]";
 
         String imageId;
@@ -280,6 +304,7 @@ public class EdgeNode {
             //create custom envoy image
             imageId = dockerClient.buildImageCmd()
                     .withDockerfile(dockerfile)
+                    .withForcerm(true)
                     .withPull(true)
                     .withNoCache(true)
                     .withTags(Stream.of("envoy").collect(Collectors.toSet()))
@@ -299,13 +324,16 @@ public class EdgeNode {
                 .createContainerCmd(imageId)
                 .withName("envoy-"+edgeId)
                 .withExposedPorts(new ArrayList<>(Arrays.asList(
+                        ExposedPort.tcp(443),
                         ExposedPort.tcp(80),
                         ExposedPort.tcp(10000)
                 )))
                 .withHostConfig(HostConfig.newHostConfig()
+                        .withDns(Configuration.DNS_API_IP)
                         .withRestartPolicy(RestartPolicy.unlessStoppedRestart())
                         .withPortBindings(new ArrayList<>(Arrays.asList(
                                         PortBinding.parse(this.getIpAddress()+":80/tcp:80"),
+                                        PortBinding.parse(this.getIpAddress()+":443/tcp:443"),
                                         PortBinding.parse(this.getIpAddress()+":10000/tcp:10000"))
                                 )
                         )
