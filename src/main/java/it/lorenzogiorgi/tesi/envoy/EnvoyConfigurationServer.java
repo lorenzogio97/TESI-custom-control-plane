@@ -178,7 +178,7 @@ public class EnvoyConfigurationServer {
 
     }
 
-    public void addUserRouteToProxy(String proxyId, String username, String domain, String routeConfigName, String prefix,
+    public void addUserRouteToProxy(String proxyId, String username, String prefix,
                                     String userCookie, String destinationCluster) {
 
         Route route = Route.newBuilder()

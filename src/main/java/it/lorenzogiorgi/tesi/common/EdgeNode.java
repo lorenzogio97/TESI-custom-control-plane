@@ -107,8 +107,7 @@ public class EdgeNode extends ComputeNode{
                     Orchestrator.envoyConfigurationServer.addFeedbackRouteToProxy(proxyID, user.getUsername(), endpoint,
                             authCookie, microservice.getName());
                 } else {
-                    Orchestrator.envoyConfigurationServer.addUserRouteToProxy(proxyID, user.getUsername(), Configuration.PLATFORM_DOMAIN,
-                            "default", endpoint, authCookie, microservice.getName());
+                    Orchestrator.envoyConfigurationServer.addUserRouteToProxy(proxyID, user.getUsername(), endpoint, authCookie, microservice.getName());
                 }
 
             }
