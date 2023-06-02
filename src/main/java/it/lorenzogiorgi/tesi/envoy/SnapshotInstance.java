@@ -6,22 +6,33 @@ import io.envoyproxy.envoy.config.cluster.v3.Cluster;
 import io.envoyproxy.envoy.config.core.v3.HeaderValue;
 import io.envoyproxy.envoy.config.core.v3.HeaderValueOption;
 import io.envoyproxy.envoy.config.listener.v3.Listener;
-import io.envoyproxy.envoy.config.route.v3.*;
+import io.envoyproxy.envoy.config.route.v3.Route;
+import io.envoyproxy.envoy.config.route.v3.RouteConfiguration;
+import io.envoyproxy.envoy.config.route.v3.RouteMatch;
+import io.envoyproxy.envoy.config.route.v3.VirtualHost;
 import it.lorenzogiorgi.tesi.common.Configuration;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.stream.Collectors;
 
 public class SnapshotInstance {
     private Snapshot lastSnapshot;
+
+    List<Listener> listenerList;
+    List<Cluster> clusterList;
+    List<Route> routeList;
     private long lastVersion;
 
     /**
      * Create an empty configuration and set the lastVersion value
      */
     public SnapshotInstance() {
-        this.lastSnapshot = Snapshot.create(ImmutableList.of(), ImmutableList.of(), ImmutableList.of(), ImmutableList.of(), ImmutableList.of(),"1");
+        this.lastSnapshot = Snapshot.create(ImmutableList.of(), ImmutableList.of(), ImmutableList.of(), ImmutableList.of(), ImmutableList.of(), "1");
         this.lastVersion = 1;
+        this.routeList = new ArrayList<>();
+        this.clusterList = new ArrayList<>();
+        this.listenerList = new ArrayList<>();
     }
 
 
@@ -41,201 +52,64 @@ public class SnapshotInstance {
         this.lastVersion = lastVersion;
     }
 
-    /**
-     * Add the resource to the configuration snapshot
-     * @param resource the resource to add
-     * @return true if the resource has been added correcty, false otherwise
-     */
-    public synchronized boolean addResource(com.google.protobuf.GeneratedMessageV3 resource) {
-        if(!((resource instanceof Cluster) || (resource instanceof Listener) || (resource instanceof RouteConfiguration)))
-            return false;
 
-        //System.out.println("last version before "+lastVersion);
-        List<Cluster> clusterList = new ArrayList<>(lastSnapshot.clusters().resources().values());
-        List<Listener> listenerList= new ArrayList<>(lastSnapshot.listeners().resources().values());
-        List<RouteConfiguration> routeConfigurationList= new ArrayList<>((lastSnapshot.routes().resources().values()));
+    public synchronized void addRoute(Route route) {
+        //find if some route with the same name is present
+        routeList.removeIf(r -> r.getName().equals(route.getName()));
 
-        if(resource instanceof Cluster && !clusterList.contains(resource))
-            //TODO: better check equal resource (forse qua non necessario perché i cluster sono privati dell'utente, quindi dovrebbero avere anche stesso nome
-            clusterList.add((Cluster) resource);
-        if(resource instanceof Listener && !listenerList.contains(resource))
-            //TODO: qua in teoria è possibile avere duplicati con nomi differenti, ma dipende se ammettiamo di avere più listeners
-            listenerList.add((Listener) resource);
-        if(resource instanceof RouteConfiguration && !routeConfigurationList.contains(resource)) {
-            RouteConfiguration routeConfigurationToAdd = (RouteConfiguration) resource;
-            String routeConfigNameToAdd = routeConfigurationToAdd.getName();
-            //search of there is an existing configuration with that configname
-            Optional<RouteConfiguration> existentOptionalRouteConfiguration =
-                    routeConfigurationList.stream().filter(r -> r.getName().equals(routeConfigNameToAdd)).findFirst();
-            if(!existentOptionalRouteConfiguration.isPresent()) {
-                routeConfigurationList.add((RouteConfiguration) resource);
-                lastSnapshot = Snapshot.create(
-                        clusterList,
-                        ImmutableList.of(),
-                        listenerList,
-                        routeConfigurationList,
-                        ImmutableList.of(),
-                        String.valueOf(++lastVersion)
-                );
-                //System.out.println("last version after "+lastVersion);
-                return true;
-            }
+        //front inserting to leave match all default in last position
+        routeList.add(0, route);
 
-            //we have to check if the found RouteConfiguration has the same virtual host
-            String domainToAdd = routeConfigurationToAdd.getVirtualHosts(0).getName();
-            RouteConfiguration existentRouteConfiguration = existentOptionalRouteConfiguration.get();
-            Optional<VirtualHost> existentOptionalVirtualHost = existentRouteConfiguration.getVirtualHostsList()
-                    .stream().filter(v -> v.getName().equals(domainToAdd)).findFirst();
-            if(!existentOptionalVirtualHost.isPresent()) {
-                List<VirtualHost> newVirtualHostList = new ArrayList<>(existentRouteConfiguration.getVirtualHostsList());
-                newVirtualHostList.add(routeConfigurationToAdd.getVirtualHosts(0));
-                RouteConfiguration newRouteConfiguration = RouteConfiguration.newBuilder()
-                        .setName(routeConfigNameToAdd)
-                        .addAllVirtualHosts(newVirtualHostList)
-                        .build();
-                routeConfigurationList = routeConfigurationList
-                        .stream()
-                        .filter(r -> !r.equals(existentRouteConfiguration))
-                        .collect(Collectors.toList());
-                routeConfigurationList.add(newRouteConfiguration);
-                lastSnapshot = Snapshot.create(
-                        clusterList,
-                        ImmutableList.of(),
-                        listenerList,
-                        routeConfigurationList,
-                        ImmutableList.of(),
-                        String.valueOf(++lastVersion)
-                );
-                return true;
-            }
-
-            //if we arrive there it means that we already have a configuration with the same configName and related
-            //to the same domain. So we need to add only the specific route leaving other stuff untouched
-            Route routeToAdd = routeConfigurationToAdd.getVirtualHosts(0).getRoutes(0);
-            List<VirtualHost> newVirtualHostList = existentRouteConfiguration.getVirtualHostsList();
-            VirtualHost existentVirtualHost = existentOptionalVirtualHost.get();
-            List<Route> newRouteList = existentVirtualHost.getRoutesList();
-            //replace if the same route is present
-            newRouteList = newRouteList
-                    .stream()
-                    .filter(r -> !r.getName().equals(routeToAdd.getName()))
-                    .collect(Collectors.toList());
-            newRouteList.add(0,routeToAdd);
-
-            //recreate the VirtualHost with the new Route list
-            VirtualHost newVirtualHost = VirtualHost.newBuilder()
-                    .setName(existentVirtualHost.getName())
-                    .addDomains(existentVirtualHost.getDomains(0))
-                    .addAllRoutes(newRouteList)
-                    .build();
-
-            //replace the virtual host in the VirtualHost list
-            newVirtualHostList = newVirtualHostList
-                    .stream()
-                    .filter(vh -> !vh.equals(existentVirtualHost))
-                    .collect(Collectors.toList());
-            newVirtualHostList.add(newVirtualHost);
-
-            RouteConfiguration newRouteConfiguration = RouteConfiguration.newBuilder()
-                    .setName(routeConfigNameToAdd)
-                    .addAllVirtualHosts(newVirtualHostList)
-                    .build();
-
-            routeConfigurationList = routeConfigurationList
-                    .stream()
-                    .filter(rc -> !rc.equals(existentRouteConfiguration))
-                    .collect(Collectors.toList());
-
-            routeConfigurationList.add(newRouteConfiguration);
-
-        }
-
-
-        lastSnapshot = Snapshot.create(
-                clusterList,
-                ImmutableList.of(),
-                listenerList,
-                routeConfigurationList,
-                ImmutableList.of(),
-                String.valueOf(++lastVersion)
-                );
-        return true;
+        commit();
     }
 
 
+    public synchronized void addCluster(Cluster cluster) {
+        //remove if some cluster with the same name is present
+        clusterList.removeIf(c -> c.getName().equals(cluster.getName()));
+
+        clusterList.add(cluster);
+
+        commit();
+    }
+
+    public synchronized void addListener(Listener listener) {
+        //remove if some listener with the same name is present
+        listenerList.removeIf(c -> c.getName().equals(listener.getName()));
+
+        listenerList.add(listener);
+
+        commit();
+    }
+
+
+    public synchronized void deleteRouteByName(String routeName) {
+        routeList.removeIf(r -> r.getName().equals(routeName));
+        commit();
+    }
+
     public synchronized void deleteRoutesByUser(String username) {
-        ArrayList<RouteConfiguration> routeConfigurationList = new ArrayList<>(lastSnapshot.routes().resources().values());
-        ArrayList<Cluster> clusterList = new ArrayList<>(lastSnapshot.clusters().resources().values());
-        ArrayList<Listener> listenerList = new ArrayList<>(lastSnapshot.listeners().resources().values());
+        //filter out all routes of a specific user
+        routeList.removeIf(r -> r.getName().split("-", 2)[0].equals(username));
+        commit();
+    }
 
-
-        List<RouteConfiguration> newRouteConfigurationList = new ArrayList<>();
-        for(RouteConfiguration rc : routeConfigurationList) {
-            RouteConfiguration.Builder newRouteConfigurationBuilder = RouteConfiguration.newBuilder()
-                    .setName(rc.getName());
-            for(VirtualHost vh: rc.getVirtualHostsList()) {
-                VirtualHost.Builder newVirtualHost=VirtualHost.newBuilder()
-                        .setName(vh.getName())
-                        .addAllDomains(vh.getDomainsList());
-                for(Route r: vh.getRoutesList()) {
-                    if (!r.getName().split("-", 2)[0].equals(username)) {
-                        newVirtualHost.addRoutes(r);
-                    }
-                }
-            }
-            newRouteConfigurationList.add(newRouteConfigurationBuilder.build());
-        }
-
-        lastSnapshot = Snapshot.create(
-                clusterList,
-                ImmutableList.of(),
-                listenerList,
-                newRouteConfigurationList,
-                ImmutableList.of(),
-                String.valueOf(++lastVersion)
-        );
+    public synchronized void deleteClusterByName(String clusterName) {
+        clusterList.removeIf(c -> c.getName().equals(clusterName));
+        commit();
     }
 
     public synchronized void deleteClustersByUser(String username) {
-        List<Cluster> clusterList = lastSnapshot
-                .clusters()
-                .resources()
-                .values()
-                .stream()
-                .filter(c -> !c.getName().split("-", 2)[0].equals(username))
-                .collect(Collectors.toList());
-
-        Collection<RouteConfiguration> routeConfigurationList = lastSnapshot.routes().resources().values();
-        Collection<Listener> listenerList = lastSnapshot.listeners().resources().values();
-
-        lastSnapshot = Snapshot.create(
-                clusterList,
-                ImmutableList.of(),
-                listenerList,
-                routeConfigurationList,
-                ImmutableList.of(),
-                String.valueOf(++lastVersion)
-        );
+        clusterList.removeIf(c -> c.getName().split("-", 2)[0].equals(username));
+        commit();
     }
 
 
-    public synchronized void redirectProxyRoutesByUser(String username, String destinationProxyId) {
-        ArrayList<RouteConfiguration> routeConfigurationList = new ArrayList<>(lastSnapshot.routes().resources().values());
-        ArrayList<Cluster> clusterList = new ArrayList<>(lastSnapshot.clusters().resources().values());
-        ArrayList<Listener> listenerList = new ArrayList<>(lastSnapshot.listeners().resources().values());
-
-        List<RouteConfiguration> newRouteConfigurationList = new ArrayList<>();
-        for(RouteConfiguration rc : routeConfigurationList) {
-            RouteConfiguration.Builder newRouteConfigurationBuilder = RouteConfiguration.newBuilder()
-                    .setName(rc.getName());
-            for(VirtualHost vh: rc.getVirtualHostsList()) {
-                VirtualHost.Builder newVirtualHost=VirtualHost.newBuilder()
-                                .setName(vh.getName())
-                                .addAllDomains(vh.getDomainsList());
-                for(Route r: vh.getRoutesList()) {
-                    if (r.getName().split("-", 2)[0].equals(username)) {
-                        newVirtualHost.addRoutes(
-                                Route.newBuilder()
+    public synchronized void convertRouteToMigratingByUser(String username, String destinationProxyId) {
+        routeList = routeList.stream()
+                .map(r -> {
+                            if (r.getName().split("-", 2)[0].equals(username)) {
+                                return Route.newBuilder()
                                         .setName(r.getName())
                                         .setMatch(
                                                 RouteMatch.newBuilder()
@@ -244,26 +118,66 @@ public class SnapshotInstance {
                                         .addResponseHeadersToAdd(HeaderValueOption.newBuilder()
                                                 .setHeader(HeaderValue.newBuilder()
                                                         .setKey("Alt-Svc")
-                                                        .setValue("h2=\""+destinationProxyId+"."+Configuration.PLATFORM_NODE_BASE_DOMAIN+":443\";")
-                                                        )
-                                                .setAppendAction(HeaderValueOption.HeaderAppendAction.OVERWRITE_IF_EXISTS_OR_ADD)
+                                                        .setValue("h2=\"" + destinationProxyId + "." + Configuration.PLATFORM_NODE_BASE_DOMAIN + ":443\";")
                                                 )
+                                                .setAppendAction(HeaderValueOption.HeaderAppendAction.OVERWRITE_IF_EXISTS_OR_ADD)
+                                        )
                                         .setRoute(r.getRoute())
-                        );
-                    } else {
-                        newVirtualHost.addRoutes(r);
-                    }
-                }
-                newRouteConfigurationBuilder.addVirtualHosts(newVirtualHost);
-            }
-            newRouteConfigurationList.add(newRouteConfigurationBuilder.build());
-        }
+                                        .build();
+                            }
+                            return r;
+                        }
+                ).collect(Collectors.toList());
+
+        commit();
+    }
+
+    /**
+     * Method that convert all routes belonging to user identified by username and make them STABLE.
+     * This method is used to remove Alt-Svc annunciation from a redirect route (possible in the case of double migration)
+     * or to remove feedback script from a feedback route.
+     * @param username username of the user to be modified
+     */
+    public synchronized void convertRouteToStableByUser(String username) {
+        routeList = routeList.stream()
+                .map(r -> {
+                            if (r.getName().split("-", 2)[0].equals(username)) {
+                                return Route.newBuilder()
+                                        .setName(r.getName())
+                                        .setMatch(
+                                                RouteMatch.newBuilder()
+                                                        .setPathSeparatedPrefix(r.getMatch().getPathSeparatedPrefix())
+                                                        .addAllHeaders(r.getMatch().getHeadersList()))
+                                        .setRoute(r.getRoute())
+                                        .build();
+                            }
+                            return r;
+                        }
+                ).collect(Collectors.toList());
+
+        commit();
+    }
+
+    /**
+     * Method that update lastSnapshot. It must be called after every modification of routeList, listenerList or
+     * clusterList to update lastSnapshot. It takes care to create a single Route Configuration containing all routes.
+     */
+    private void commit() {
+        RouteConfiguration routeConfiguration = RouteConfiguration.newBuilder()
+                .setName("default")
+                .addVirtualHosts(
+                        VirtualHost.newBuilder()
+                                .setName(Configuration.PLATFORM_DOMAIN)
+                                .addDomains("*." + Configuration.PLATFORM_DOMAIN)
+                                .addAllRoutes(routeList)
+                )
+                .build();
 
         lastSnapshot = Snapshot.create(
                 clusterList,
                 ImmutableList.of(),
                 listenerList,
-                newRouteConfigurationList,
+                ImmutableList.of(routeConfiguration),
                 ImmutableList.of(),
                 String.valueOf(++lastVersion)
         );
@@ -271,3 +185,4 @@ public class SnapshotInstance {
 
 
 }
+
