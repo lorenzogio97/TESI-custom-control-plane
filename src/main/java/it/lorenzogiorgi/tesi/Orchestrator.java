@@ -1,12 +1,8 @@
 package it.lorenzogiorgi.tesi;
 
 import com.google.gson.Gson;
-import io.envoyproxy.controlplane.cache.TestResources;
 import it.lorenzogiorgi.tesi.api.*;
-import it.lorenzogiorgi.tesi.common.Configuration;
-import it.lorenzogiorgi.tesi.common.EdgeNode;
-import it.lorenzogiorgi.tesi.common.UserStatus;
-import it.lorenzogiorgi.tesi.common.User;
+import it.lorenzogiorgi.tesi.common.*;
 import it.lorenzogiorgi.tesi.dns.DNSManagement;
 import it.lorenzogiorgi.tesi.envoy.EnvoyConfigurationServer;
 import org.apache.logging.log4j.LogManager;
@@ -43,6 +39,9 @@ public class Orchestrator {
         //initialize edge nodes
         initializeEdgeNodes();
 
+        //initialize cloud Envoy node
+        initializeCloudNode();
+
         //API for user needs to be available after Edgenode initialization
         Spark.post("/login", (Orchestrator::login));
         Spark.post("/logout", (Orchestrator::logout));
@@ -55,8 +54,16 @@ public class Orchestrator {
     }
 
 
+
+    private static void initializeCloudNode() {
+        CloudNode cloudNode = Configuration.cloudNode;
+        cloudNode.initialize();
+        DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, Configuration.PLATFORM_CLIENT_DOMAIN, "A", 3600, cloudNode.getIpAddress());
+        logger.info("Cloud node initialized");
+    }
+
+
     private static void initializeDNS() {
-        DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, Configuration.PLATFORM_AUTHENTICATION_DOMAIN, "A", 600, Configuration.ORCHESTRATOR_API_IP);
         DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, Configuration.PLATFORM_ORCHESTRATOR_DOMAIN, "A", 600, Configuration.ORCHESTRATOR_API_IP);
         DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, Configuration.PLATFORM_ENVOY_CONF_SERVER_DOMAIN, "A", 600, Configuration.ENVOY_CONFIGURATION_SERVER_IP);
     }
@@ -120,14 +127,22 @@ public class Orchestrator {
                 "                address: "+Configuration.PLATFORM_ORCHESTRATOR_DOMAIN+"\n" +
                 "                port_value: "+Configuration.ORCHESTRATOR_API_PORT+"\n" +
                 "    name: orchestrator_cluster\n" +
-                "    type: STRICT_DNS";
+                "    type: STRICT_DNS\n"+
+                "    transport_socket:\n" +
+                "      name: envoy.transport_sockets.tls\n" +
+                "      typed_config:\n" +
+                "        \"@type\": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext\n" +
+                "        common_tls_context:\n" +
+                "          validation_context:\n" +
+                "            trusted_ca:\n" +
+                "              filename: /etc/ssl/certs/ca-certificates.crt";
     }
 
     private static void initializeEdgeNodes() {
         List<Thread> threadList = new ArrayList<>();
         for(EdgeNode edgeNode: Configuration.edgeNodes.values()) {
             Thread t = new Thread(edgeNode::initialize);
-            t.setName(edgeNode.getEdgeId());
+            t.setName(edgeNode.getId());
             threadList.add(t);
             t.start();
         }
@@ -152,7 +167,6 @@ public class Orchestrator {
     }
 
 
-
     private static String login(Request request, Response response) {
         String requestBody = request.body();
         LoginRequest loginRequest = gson.fromJson(requestBody, LoginRequest.class);
@@ -164,7 +178,7 @@ public class Orchestrator {
         if(user==null) {
             response.status(401);
             response.type("application/json");
-            return gson.toJson(new LoginResponse(false, null));
+            return gson.toJson(new LoginResponse(null));
         }
 
         synchronized(user) {
@@ -172,7 +186,7 @@ public class Orchestrator {
             if(user.getPassword()==null || !user.getPassword().equals(loginRequest.getPassword())) {
                 response.status(401);
                 response.type("application/json");
-                return gson.toJson(new LoginResponse(false, null));
+                return gson.toJson(new LoginResponse(null));
             }
 
             //if user was already logged, we need to destroy all previously allocated resources
@@ -191,9 +205,6 @@ public class Orchestrator {
             new Random().nextBytes(array);
             String authId = toHexString(array);
 
-            //compute domain name for the user
-            String domainName = user.getUsername() + "." + Configuration.PLATFORM_USER_BASE_DOMAIN;
-
             //get nearest MECNode
             List<String> nearestEdgeNodeIDs = findNearestMECNode();
 
@@ -201,14 +212,11 @@ public class Orchestrator {
             boolean allocated = false;
             for (String edgeId : nearestEdgeNodeIDs) {
                 EdgeNode edgeNode = Configuration.edgeNodes.get(edgeId);
-                allocated = edgeNode.allocateUserResources(user.getUsername(), authId);
+                allocated = edgeNode.allocateUserResources(user.getUsername(), authId, false);
                 if (allocated) {
-                    //set DNS domain
-                    DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, domainName, "A", 60, edgeNode.getIpAddress());
                     //set EdgeNodeId and cookie in User data structure
                     user.setCurrentEdgeNodeId(edgeId);
                     user.setCookie(authId);
-                    user.setStatus(UserStatus.STABLE);
                     break;
                 }
             }
@@ -217,14 +225,20 @@ public class Orchestrator {
             if (!allocated) {
                 response.status(503);
                 response.type("application/json");
-                return gson.toJson(new LoginResponse(false, null));
+                return gson.toJson(new LoginResponse(null));
             }
 
 
+            //domain name of edge assigned to user
+            String domainName= user.getCurrentEdgeNodeId()+"."+Configuration.PLATFORM_NODE_BASE_DOMAIN;
+
+            envoyConfigurationServer.addAltSvcRedirectRouteToProxy("cloud", user.getUsername(), authId, domainName);
+
             response.status(200);
             response.type("application/json");
-            response.cookie("." + Configuration.PLATFORM_DOMAIN, "/", "authID", authId, 3600, false, false);
-            return gson.toJson(new LoginResponse(true, domainName));
+            response.header("Alt-Svc", "h2=\""+domainName+":443\";");
+            response.cookie("." + Configuration.PLATFORM_DOMAIN, "/", "authID", authId, 60*60*6, false, false);
+            return gson.toJson(new LoginResponse(Configuration.PLATFORM_CLIENT_DOMAIN));
         }
     }
 
@@ -260,9 +274,8 @@ public class Orchestrator {
             //remove containers
             Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).deallocateUserResources(user.getUsername());
 
-            //remove dns record
-            String domainName = user.getUsername() + "." + Configuration.PLATFORM_USER_BASE_DOMAIN;
-            DNSManagement.deleteDNSRecord(Configuration.PLATFORM_DOMAIN, domainName, "A");
+            //deleteAltSvrRedirect on cloud Envoy node
+            envoyConfigurationServer.deleteRouteByNameFromProxy("cloud", user.getUsername()+"-user");
 
             //reset fields in user data structure
             user.setCurrentEdgeNodeId(null);
@@ -271,6 +284,7 @@ public class Orchestrator {
             user.setStatus(null);
 
             response.status(200);
+            response.header("Alt-Svc", "clear");
             return gson.toJson(new LogoutResponse());
         }
     }
@@ -306,20 +320,39 @@ public class Orchestrator {
                 return "";
             }
 
-            String domainName = user.getUsername() + "." + Configuration.PLATFORM_USER_BASE_DOMAIN;
+            if (user.getStatus()==UserStatus.MIGRATING) {
+                //remove Alt-Svc from route of the node
+                envoyConfigurationServer.convertRouteToStableByUserFromProxy(user.getUsername(),user.getFormerEdgeNodeId());
 
-            //signal that user is migrating
-            user.setStatus(UserStatus.MIGRATING);
+                // We need to fix the Alt-Svc redirect on the envoy cloud instance to point to the former one
+                String domainName= user.getFormerEdgeNodeId()+"."+Configuration.PLATFORM_NODE_BASE_DOMAIN;
+                envoyConfigurationServer.addAltSvcRedirectRouteToProxy("cloud", user.getUsername(), user.getCookie(), domainName);
+
+                //remove all resources to the migration destination node
+                envoyConfigurationServer.deleteAllUserResourcesFromProxy(user.getUsername(), user.getCurrentEdgeNodeId());
+                Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).deallocateUserResources(user.getUsername());
+
+                //former node became current one
+                user.setCurrentEdgeNodeId(user.getFormerEdgeNodeId());
+                user.setFormerEdgeNodeId(null);
+
+
+            }
 
             //resource allocation
             boolean allocated = false;
             for (String edgeId : edgeNodeIDs) {
+                // node id is the same that I'm trying to migrate to/I'm now
+                if (user.getCurrentEdgeNodeId().equals(edgeId)) {
+                    user.setStatus(UserStatus.STABLE);
+                    response.status(204);
+                    return "";
+                }
+
                 EdgeNode edgeNode = Configuration.edgeNodes.get(edgeId);
                 if (edgeNode == null) continue;
-                allocated = Configuration.edgeNodes.get(edgeId).allocateUserResources(user.getUsername(), user.getCookie());
+                allocated = Configuration.edgeNodes.get(edgeId).allocateUserResources(user.getUsername(), user.getCookie(), true);
                 if (allocated) {
-                    //set DNS domain
-                    DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, domainName, "A", 60, edgeNode.getIpAddress());
                     //set EdgeNodeId and cookie in User data structure
                     user.setFormerEdgeNodeId(user.getCurrentEdgeNodeId());
                     user.setCurrentEdgeNodeId(edgeId);
@@ -329,16 +362,20 @@ public class Orchestrator {
 
             //migration failed, user remain on the same node without migrate
             if (!allocated) {
-                user.setStatus(UserStatus.STABLE);
                 response.status(503);
                 response.type("application/json");
                 return "";
             }
-            //redirect route to new Edge node
-            envoyConfigurationServer.convertRouteToRedirect(username, user.getFormerEdgeNodeId(), user.getCurrentEdgeNodeId());
 
-            //delete user resources on old node
-            //Configuration.edgeNodes.get(user.getFormerEdgeNodeId()).deallocateUserResources(user.getUsername());
+            //signal that user is migrating
+            user.setStatus(UserStatus.MIGRATING);
+
+            // We need to fix the Alt-Svc redirect on the envoy cloud instance to point to the new edge
+            String domainName= user.getCurrentEdgeNodeId()+"."+Configuration.PLATFORM_NODE_BASE_DOMAIN;
+            envoyConfigurationServer.addAltSvcRedirectRouteToProxy("cloud", user.getUsername(), user.getCookie(), domainName);
+
+            //redirect route to new Edge node
+            envoyConfigurationServer.convertRouteToMigratingByUserFromProxy(username, user.getFormerEdgeNodeId(), user.getCurrentEdgeNodeId());
 
             response.status(204);
             return "";
@@ -349,8 +386,45 @@ public class Orchestrator {
 
     private static String finalizeMigration(Request request, Response response) {
         String username = request.params(":username");
-        String edgeNodeId = request.params(":EdgeNodeId");
-        logger.info("FINALIZE MIGRATION: user: "+username+" edgeNode: "+edgeNodeId);
+        String edgeNodeId = request.params(":edgeNodeId");
+
+        logger.info("Migration feedback for user "+username+" from EdgeNode "+edgeNodeId);
+
+        //find user to migrate
+        User user = Configuration.users.get(username);
+
+        //check if user exists
+        if(user==null ) {
+            response.status(401);
+            response.type("application/json");
+            return "";
+        }
+
+        synchronized (user) {
+            //check if user is not logged (cookie is null)
+            if (user.getCookie() == null || user.getStatus()!=UserStatus.MIGRATING ||
+                    !user.getCurrentEdgeNodeId().equals(edgeNodeId)) {
+                logger.trace("Migration feedback not correct (may be a duplicate)");
+                response.status(401);
+                response.type("application/json");
+                return "";
+            }
+
+            //remove feedback from route on the new edge node
+            envoyConfigurationServer.removeFeedbackFromRouteByUserFromProxy(username, edgeNodeId);
+
+            envoyConfigurationServer.deleteAllUserResourcesFromProxy(username, user.getFormerEdgeNodeId());
+            Configuration.edgeNodes.get(user.getFormerEdgeNodeId()).deallocateUserResources(username);
+            user.setStatus(UserStatus.STABLE);
+
+
+            //no need to maintain former edgeId after migration feedback
+            user.setFormerEdgeNodeId(null);
+
+        }
+
+        logger.info("Migration of user "+username+" to Edge Node "+ edgeNodeId + " completed");
+        response.status(204);
         return "";
     }
 
