@@ -31,7 +31,7 @@
     <rest-assured.version>3.1.0</rest-assured.version>
     <slf4j.version>1.7.26</slf4j.version>
     <testcontainers.version>1.17.1</testcontainers.version>
-    <docker-java.version>3.2.13</docker-java.version>
+    <docker-java.version>3.3.1</docker-java.version>
 
     <!-- Maven Plugin Versions -->
     <jacoco-maven-plugin.version>0.8.5</jacoco-maven-plugin.version>
@@ -68,13 +68,20 @@
       <version>${docker-java.version}</version>
     </dependency>
 
+    <!-- https://mvnrepository.com/artifact/com.github.docker-java/docker-java-api -->
+    <dependency>
+      <groupId>com.github.docker-java</groupId>
+      <artifactId>docker-java-api</artifactId>
+      <version>${docker-java.version}</version>
+    </dependency>
+
+
     <!-- https://mvnrepository.com/artifact/com.github.docker-java/docker-java-transport-httpclient5 -->
     <dependency>
       <groupId>com.github.docker-java</groupId>
       <artifactId>docker-java-transport-httpclient5</artifactId>
       <version>${docker-java.version}</version>
     </dependency>
-
 
 
     <!-- https://mvnrepository.com/artifact/com.squareup.okhttp3/okhttp -->
