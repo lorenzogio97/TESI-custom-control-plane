@@ -4,7 +4,6 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
 
-
 import java.io.IOException;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Type;
@@ -12,7 +11,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.HashMap;
-import java.util.List;
 
 /**
  * Class that contains the configuration of the application. The configuration is read from
@@ -47,8 +45,6 @@ public class Configuration {
     public static String PLATFORM_CLIENT_DOMAIN;
     public static String PLATFORM_ENVOY_CONF_SERVER_DOMAIN;
     public static String PLATFORM_ORCHESTRATOR_DOMAIN;
-    public static String PLATFORM_AUTHENTICATION_DOMAIN;
-    public static String PLATFORM_USER_BASE_DOMAIN;
     public static String PLATFORM_NODE_BASE_DOMAIN;
 
     /**
