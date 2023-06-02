@@ -8,32 +8,32 @@
   "ORCHESTRATOR_API_PORT": 443,
   "ORCHESTRATOR_API_IP": "172.16.2.121",
   "PLATFORM_DOMAIN": "lorenzogiorgi.com",
+  "PLATFORM_CLIENT_DOMAIN": "compute.lorenzogiorgi.com",
   "PLATFORM_ENVOY_CONF_SERVER_DOMAIN": "envoy-controlplane.lorenzogiorgi.com",
   "PLATFORM_ORCHESTRATOR_DOMAIN": "orchestrator.lorenzogiorgi.com",
   "PLATFORM_AUTHENTICATION_DOMAIN": "auth.lorenzogiorgi.com",
   "PLATFORM_USER_BASE_DOMAIN": "user.lorenzogiorgi.com",
   "PLATFORM_NODE_BASE_DOMAIN": "edge.lorenzogiorgi.com",
+  "cloudNode": {
+    "id": "cloud",
+    "ipAddress": "172.16.3.49",
+    "dockerPort": 2375
+  },
   "edgeNodes": {
     "edge1": {
-      "edgeId": "edge1",
+      "id": "edge1",
       "ipAddress": "172.16.4.48",
-      "dockerPort": 2375,
-      "totalMemory": 2048,
-      "totalCPU": 3
+      "dockerPort": 2375
     },
     "edge2": {
-      "edgeId": "edge2",
+      "id": "edge2",
       "ipAddress": "172.16.4.66",
-      "dockerPort": 2375,
-      "totalMemory": 1024,
-      "totalCPU": 3
+      "dockerPort": 2375
     },
     "edge3": {
-      "edgeId": "edge3",
+      "id": "edge3",
       "ipAddress": "172.16.5.14",
-      "dockerPort": 2375,
-      "totalMemory": 1024,
-      "totalCPU": 3
+      "dockerPort": 2375
     }
   },
   "applications": {
