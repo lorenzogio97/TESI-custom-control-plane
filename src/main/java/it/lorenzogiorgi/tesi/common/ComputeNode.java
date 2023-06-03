@@ -58,18 +58,25 @@ public abstract class ComputeNode {
     }
 
     protected DockerClient getDockerClient() {
+        String dockerHost;
+        if(this instanceof CloudNode) {
+            dockerHost = "tcp://"+ Configuration.PLATFORM_CLOUD_DOMAIN +":"+ this.getDockerPort();
+        } else {
+            dockerHost = "tcp://"+ id+"."+Configuration.PLATFORM_NODE_BASE_DOMAIN+":"+ this.getDockerPort();
+        }
+        DockerClientConfig config = DefaultDockerClientConfig.createDefaultConfigBuilder()
+                .withDockerHost(dockerHost)
+                .withDockerTlsVerify(true)
+                .withDockerCertPath("./src/main/resources/docker-client-certificate")
+                .build();
+
         DockerHttpClient httpClient = new ApacheDockerHttpClient.Builder()
-                .dockerHost(URI.create("tcp://"+ this.getIpAddress()+":"+ this.getDockerPort()))
+                .dockerHost(config.getDockerHost())
+                .sslConfig(config.getSSLConfig())
                 .maxConnections(100)
-                .connectionTimeout(Duration.ofSeconds(5))
-                //.responseTimeout(Duration.ofSeconds(120))
+                .connectionTimeout(Duration.ofSeconds(10))
                 .build();
-
-
-        DockerClientConfig custom = DefaultDockerClientConfig.createDefaultConfigBuilder()
-                .withDockerHost("tcp://"+ this.getIpAddress()+":"+ this.getDockerPort())
-                .build();
-        return DockerClientImpl.getInstance(custom, httpClient);
+        return DockerClientImpl.getInstance(config, httpClient);
     }
 
     public void cleanupContainer() {
@@ -167,7 +174,7 @@ public abstract class ComputeNode {
                     .withDockerfile(dockerfile)
                     .withForcerm(true)
                     .withPull(true)
-                    //.withNoCache(true)
+                    .withNoCache(true)
                     .withTags(Stream.of("envoy").collect(Collectors.toSet()))
                     .exec(new BuildImageResultCallback())
                     .awaitImageId();

@@ -42,7 +42,7 @@ public class Configuration {
      * Platform domain configuration
      */
     public static String PLATFORM_DOMAIN;
-    public static String PLATFORM_CLIENT_DOMAIN;
+    public static String PLATFORM_CLOUD_DOMAIN;
     public static String PLATFORM_ENVOY_CONF_SERVER_DOMAIN;
     public static String PLATFORM_ORCHESTRATOR_DOMAIN;
     public static String PLATFORM_NODE_BASE_DOMAIN;

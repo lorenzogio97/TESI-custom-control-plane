@@ -58,7 +58,7 @@ public class Orchestrator {
     private static void initializeCloudNode() {
         CloudNode cloudNode = Configuration.cloudNode;
         cloudNode.initialize();
-        DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, Configuration.PLATFORM_CLIENT_DOMAIN, "A", 3600, cloudNode.getIpAddress());
+        DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, Configuration.PLATFORM_CLOUD_DOMAIN, "A", 3600, cloudNode.getIpAddress());
         logger.info("Cloud node initialized");
     }
 
@@ -238,7 +238,7 @@ public class Orchestrator {
             response.type("application/json");
             response.header("Alt-Svc", "h2=\""+domainName+":443\";");
             response.cookie("." + Configuration.PLATFORM_DOMAIN, "/", "authID", authId, 60*60*6, false, false);
-            return gson.toJson(new LoginResponse(Configuration.PLATFORM_CLIENT_DOMAIN));
+            return gson.toJson(new LoginResponse(Configuration.PLATFORM_CLOUD_DOMAIN));
         }
     }
 
