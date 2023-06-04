@@ -37,8 +37,9 @@ public class Orchestrator {
         Spark.staticFileLocation("/tls");
         Spark.get("/envoyconfiguration/:envoyNodeID", Orchestrator::serveEnvoyConfiguration);
         Spark.get("/platform-tls/:what/:token", Orchestrator::servePlatformTls);
+        Spark.get("/envoy-mtls/:what/:token", Orchestrator::serveEnvoymTls);
         Spark.after((request, response) -> {
-            logger.info(String.format("%s %s", request.requestMethod(), request.url()));
+            logger.info(String.format("%s %s %s", request.requestMethod(), request.url(), request.body()));
         });
 
         Spark.awaitInitialization();
@@ -72,25 +73,51 @@ public class Orchestrator {
         DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, Configuration.PLATFORM_ENVOY_CONF_SERVER_DOMAIN, "A", 600, Configuration.ENVOY_CONFIGURATION_SERVER_IP);
     }
 
+    private static String serveEnvoymTls(Request request, Response response) {
+        String what = request.params(":what");
+        String token = request.params(":token");
+
+        if(!(Objects.equals(what, "cert") || Objects.equals(what, "key") || Objects.equals(what, "ca")) ||
+                token == null) {
+            return "";
+        }
+
+        //check if the token is valid
+        if(securityTokenMap.getOrDefault(token, 0L)<System.currentTimeMillis()) {
+            response.status(401);
+            return "";
+        }
+
+
+        String returnContent = null;
+        switch (what) {
+            case "cert":
+                returnContent = FileUtility.readTextFile("./src/main/resources/tls/envoy-mtls/clientcert.pem");
+                break;
+            case "key":
+                returnContent = FileUtility.readTextFile("./src/main/resources/tls/envoy-mtls/clientkey.pem");
+                break;
+            case "ca":
+                returnContent = FileUtility.readTextFile("./src/main/resources/tls/envoy-mtls/ca.crt");
+                break;
+        }
+
+        response.type("text/plain");
+        response.status(200);
+        return returnContent;
+    }
 
     private static String servePlatformTls(Request request, Response response) {
         String what = request.params(":what");
         String token = request.params(":token");
-        System.out.println(what);
-        System.out.println(token);
 
         if(!(Objects.equals(what, "cert") || Objects.equals(what, "key")) || token == null) {
-            System.out.println("primo if");
-            System.out.println(what);
-            System.out.println(token);
             response.status(400);
             return "";
         }
 
         //check if the token is valid
-        System.out.println(securityTokenMap.getOrDefault(token, 0L));
         if(securityTokenMap.getOrDefault(token, 0L)<System.currentTimeMillis()) {
-            System.out.println("secondo if");
             response.status(401);
             return "";
         }
@@ -107,7 +134,6 @@ public class Orchestrator {
                 break;
         }
 
-        logger.info("RETURN CONTENT:"+returnContent);
         response.type("text/plain");
         response.status(200);
         return returnContent;

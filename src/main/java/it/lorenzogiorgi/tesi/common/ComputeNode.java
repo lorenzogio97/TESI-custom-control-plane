@@ -170,11 +170,11 @@ public abstract class ComputeNode {
                         "    && chmod a+r /etc/certs/platform-tls/serverkey.pem\n"+
 
                         //Envoy mTLS
-                        "RUN curl "+ tlsConfigurationUrl+"/envoy-mtls/clientcert.pem" +" -o clientcert.pem\n" +
+                        "RUN curl "+ tlsConfigurationUrl+"/envoy-mtls/cert/"+token + " -o clientcert.pem\n" +
                         "RUN mv ./clientcert.pem /etc/certs/envoy-mtls/clientcert.pem\n" +
-                        "RUN curl "+ tlsConfigurationUrl+"/envoy-mtls/clientkey.pem" +" -o clientkey.pem\n" +
+                        "RUN curl "+ tlsConfigurationUrl+"/envoy-mtls/key/"+ token + " -o clientkey.pem\n" +
                         "RUN mv ./clientkey.pem /etc/certs/envoy-mtls/clientkey.pem\n" +
-                        "RUN curl "+ tlsConfigurationUrl+"/envoy-mtls/ca.crt" +" -o ca.crt\n" +
+                        "RUN curl "+ tlsConfigurationUrl+"/envoy-mtls/ca/"+token + " -o ca.crt\n" +
                         "RUN mv ./ca.crt /etc/certs/envoy-mtls/ca.crt\n" +
                         "RUN chmod a+r /etc/certs/envoy-mtls/clientcert.pem \\\n" +
                         "    && chmod a+r /etc/certs/envoy-mtls/clientkey.pem \\\n"+
