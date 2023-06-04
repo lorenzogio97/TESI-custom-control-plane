@@ -116,6 +116,19 @@ public class Orchestrator {
                 "    http2_protocol_options: {}\n" +
                 "    name: xds_cluster\n" +
                 "    type: STRICT_DNS\n"+
+                "    transport_socket:\n" +
+                "      name: envoy.transport_sockets.tls\n" +
+                "      typed_config:\n" +
+                "        \"@type\": type.googleapis.com/envoy.extensions.transport_sockets.tls.v3.UpstreamTlsContext\n" +
+                "        common_tls_context:\n" +
+                "          tls_certificates:\n" +
+                "            certificate_chain:\n" +
+                "              filename: /etc/certs/envoy-mtls/clientcert.pem\n"+
+                "            private_key:\n" +
+                "              filename: /etc/certs/envoy-mtls/clientkey.pem\n"+
+                "          validation_context:\n" +
+                "            trusted_ca:\n" +
+                "              filename: /etc/certs/envoy-mtls/ca.crt\n"+
                 "  - connect_timeout: 5s\n" +
                 "    load_assignment:\n" +
                 "      cluster_name: orchestrator_cluster\n" +

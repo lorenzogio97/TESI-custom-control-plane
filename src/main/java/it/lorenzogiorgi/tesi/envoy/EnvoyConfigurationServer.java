@@ -23,14 +23,15 @@ import io.envoyproxy.envoy.extensions.transport_sockets.tls.v3.CommonTlsContext;
 import io.envoyproxy.envoy.extensions.transport_sockets.tls.v3.DownstreamTlsContext;
 import io.envoyproxy.envoy.extensions.transport_sockets.tls.v3.TlsCertificate;
 import io.envoyproxy.envoy.type.matcher.v3.StringMatcher;
-import io.grpc.Server;
-import io.grpc.ServerBuilder;
+import io.grpc.*;
 import io.grpc.netty.NettyServerBuilder;
+import io.netty.handler.ssl.ClientAuth;
 import it.lorenzogiorgi.tesi.common.CloudNode;
 import it.lorenzogiorgi.tesi.common.Configuration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -47,16 +48,27 @@ public class EnvoyConfigurationServer {
         globalCache = new SimpleCache<>(Node::getId);
         V3DiscoveryServer v3DiscoveryServer = new V3DiscoveryServer(globalCache);
 
-        ServerBuilder<NettyServerBuilder> builder =
-                NettyServerBuilder.forPort(Configuration.ENVOY_CONFIGURATION_SERVER_PORT)
-                        .addService(v3DiscoveryServer.getClusterDiscoveryServiceImpl())
-                        .addService(v3DiscoveryServer.getEndpointDiscoveryServiceImpl())
-                        .addService(v3DiscoveryServer.getListenerDiscoveryServiceImpl())
-                        .addService(v3DiscoveryServer.getRouteDiscoveryServiceImpl());
-
-        server = builder.build();
 
         try {
+            File certChain= new File("./src/main/resources/mTLS-Envoy/servercert.pem");
+            File privateKey = new File("./src/main/resources/mTLS-Envoy/serverkey.pem");
+            File clientCAFile = new File("./src/main/resources/mTLS-Envoy/ca.crt");
+
+            ServerCredentials creds = TlsServerCredentials.newBuilder()
+                    .keyManager(certChain, privateKey)
+                    .trustManager(clientCAFile)
+                    .clientAuth(TlsServerCredentials.ClientAuth.REQUIRE)
+                    .build();
+
+            ServerBuilder<NettyServerBuilder> builder =
+                    NettyServerBuilder.forPort(Configuration.ENVOY_CONFIGURATION_SERVER_PORT, creds)
+                            .addService(v3DiscoveryServer.getClusterDiscoveryServiceImpl())
+                            .addService(v3DiscoveryServer.getEndpointDiscoveryServiceImpl())
+                            .addService(v3DiscoveryServer.getListenerDiscoveryServiceImpl())
+                            .addService(v3DiscoveryServer.getRouteDiscoveryServiceImpl());
+
+            server = builder.build();
+
             server.start();
         } catch (IOException e) {
             logger.fatal("Envoy configuration server not started");
@@ -141,10 +153,10 @@ public class EnvoyConfigurationServer {
                         .setCommonTlsContext(CommonTlsContext.newBuilder()
                                 .addTlsCertificates(TlsCertificate.newBuilder()
                                         .setCertificateChain(DataSource.newBuilder()
-                                                .setFilename("/etc/certs/servercert.pem")
+                                                .setFilename("/etc/certs/platform-tls/servercert.pem")
                                         )
                                         .setPrivateKey(DataSource.newBuilder()
-                                                .setFilename("/etc/certs/serverkey.pem")
+                                                .setFilename("/etc/certs/platform-tls/serverkey.pem")
                                         )
                                 )
                                 .addAlpnProtocols("h2,http/1.1")
@@ -182,7 +194,7 @@ public class EnvoyConfigurationServer {
                                     String userCookie, String destinationCluster) {
 
         Route route = Route.newBuilder()
-                .setName(username+"-"+prefix)// sfruttare per l'eliminazione
+                .setName(username+"-"+prefix)// useful for delete
                 .setMatch(
                         RouteMatch.newBuilder()
                                 .setPathSeparatedPrefix(prefix)

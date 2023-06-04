@@ -153,12 +153,29 @@ public abstract class ComputeNode {
                         "RUN mv ./envoy-configuration.yaml /etc/front-envoy.yaml\n" +
                         "RUN chmod go+r /etc/front-envoy.yaml\n" +
                         "RUN mkdir /etc/certs/ \n"+
-                        "RUN curl "+ tlsConfigurationUrl+"/servercert.pem" +" -o servercert.pem\n" +
-                        "RUN mv ./servercert.pem /etc/certs/servercert.pem\n" +
-                        "RUN curl "+ tlsConfigurationUrl+"/serverkey.pem" +" -o serverkey.pem\n" +
-                        "RUN mv ./serverkey.pem /etc/certs/serverkey.pem\n" +
-                        "RUN chmod a+r /etc/certs/servercert.pem\n" +
-                        "RUN chmod a+r /etc/certs/serverkey.pem\n"+
+                        "RUN mkdir /etc/certs/platform-tls/ \n"+
+                        "RUN mkdir /etc/certs/envoy-mtls/ \n"+
+
+                        // TLS certificate and key for platform domain
+                        "RUN curl "+ tlsConfigurationUrl+"/platform-tls/servercert.pem" +" -o servercert.pem\n" +
+                        "RUN mv ./servercert.pem /etc/certs/platform-tls/servercert.pem\n" +
+                        "RUN curl "+ tlsConfigurationUrl+"/platform-tls/serverkey.pem" +" -o serverkey.pem\n" +
+                        "RUN mv ./serverkey.pem /etc/certs/platform-tls/serverkey.pem\n" +
+                        "RUN chmod a+r /etc/certs/platform-tls/servercert.pem \\\n" +
+                        "    && chmod a+r /etc/certs/platform-tls/serverkey.pem\n"+
+
+                        //Envoy mTLS
+                        "RUN curl "+ tlsConfigurationUrl+"/envoy-mtls/clientcert.pem" +" -o clientcert.pem\n" +
+                        "RUN mv ./clientcert.pem /etc/certs/envoy-mtls/clientcert.pem\n" +
+                        "RUN curl "+ tlsConfigurationUrl+"/envoy-mtls/clientkey.pem" +" -o clientkey.pem\n" +
+                        "RUN mv ./clientkey.pem /etc/certs/envoy-mtls/clientkey.pem\n" +
+                        "RUN curl "+ tlsConfigurationUrl+"/envoy-mtls/ca.crt" +" -o ca.crt\n" +
+                        "RUN mv ./ca.crt /etc/certs/envoy-mtls/ca.crt\n" +
+                        "RUN chmod a+r /etc/certs/envoy-mtls/clientcert.pem \\\n" +
+                        "    && chmod a+r /etc/certs/envoy-mtls/clientkey.pem \\\n"+
+                        "    && chmod a+r /etc/certs/envoy-mtls/ca.crt\n"+
+
+                        //run Envoy
                         "CMD [\"/usr/local/bin/envoy\", \"-c\", \"/etc/front-envoy.yaml\", \"--service-cluster\", \"front-proxy\"]";
 
         String imageId;
