@@ -3,14 +3,12 @@ package it.lorenzogiorgi.tesi.common;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
+import it.lorenzogiorgi.tesi.utiliy.FileUtility;
 
-import java.io.IOException;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Type;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Class that contains the configuration of the application. The configuration is read from
@@ -48,6 +46,13 @@ public class Configuration {
     public static String PLATFORM_NODE_BASE_DOMAIN;
 
     /**
+     * Security Token
+     */
+    public static int CLIENT_AUTHENTICATION_TOKEN_LENGTH;
+    public static int CRYPTO_TOKEN_SECONDS_VALIDITY;
+    public static int CRYPTO_TOKEN_LENGTH;
+
+    /**
      * Applications information
      */
     public static HashMap<String, Application> applications;
@@ -60,24 +65,19 @@ public class Configuration {
     /**
      * Edge node information
      */
-    public static HashMap<String, EdgeNode> edgeNodes;
+    public static ConcurrentHashMap<String, EdgeNode> edgeNodes;
 
     /**
      * Sample user data
      */
     public static HashMap<String, User> users;
 
+
     /*
       Load configuration from file
      */
     static {
-        byte[] encoded;
-        try {
-            encoded = Files.readAllBytes(Paths.get("./configuration/configuration.json"));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        String jsonString = new String(encoded, StandardCharsets.UTF_8);
+        String jsonString = FileUtility.readTextFile("./configuration/configuration.json");
         GsonBuilder gsonBuilder = new GsonBuilder();
         gsonBuilder.excludeFieldsWithModifiers(Modifier.TRANSIENT);
         Gson gson = gsonBuilder.create();
@@ -89,14 +89,8 @@ public class Configuration {
     /**
      * separate load function for User. This allows the possibility to modify data source for user in the future.
      */
-    public static void loadUsers() {
-        byte[] encoded;
-        try {
-            encoded = Files.readAllBytes(Paths.get("./configuration/userList.json"));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        String jsonString = new String(encoded, StandardCharsets.UTF_8);
+    private static void loadUsers() {
+        String jsonString = FileUtility.readTextFile("./configuration/userList.json");
         Type hashmapObject = new TypeToken<HashMap<String, User>>() {}.getType();
         GsonBuilder gsonBuilder = new GsonBuilder();
         gsonBuilder.excludeFieldsWithModifiers(Modifier.TRANSIENT);

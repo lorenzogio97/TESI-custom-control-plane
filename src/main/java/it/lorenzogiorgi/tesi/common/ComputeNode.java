@@ -12,12 +12,12 @@ import com.github.dockerjava.core.DockerClientImpl;
 import com.github.dockerjava.httpclient5.ApacheDockerHttpClient;
 import com.github.dockerjava.transport.DockerHttpClient;
 import it.lorenzogiorgi.tesi.Orchestrator;
+import it.lorenzogiorgi.tesi.utiliy.TokenUtiliy;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.io.FileWriter;
-import java.io.IOException;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -129,9 +129,15 @@ public abstract class ComputeNode {
 
     protected abstract void initialize();
 
-    protected void initializeFrontProxy() {
+    protected boolean initializeFrontProxy() {
         logger.info("Envoy front proxy creation of node "+ id + " started");
         DockerClient dockerClient = getDockerClient();
+
+        //token creation
+        String token = TokenUtiliy.generateRandomHexString(Configuration.CRYPTO_TOKEN_LENGTH);
+
+        //insert token into authorized one
+        Orchestrator.securityTokenMap.put(token, System.currentTimeMillis()+Configuration.CRYPTO_TOKEN_SECONDS_VALIDITY * 1000L);
 
         //create Dockerfile
         String configurationFileUrl= "https://"+Configuration.PLATFORM_ORCHESTRATOR_DOMAIN+":"
@@ -156,9 +162,9 @@ public abstract class ComputeNode {
                         "RUN mkdir /etc/certs/envoy-mtls/ \n"+
 
                         // TLS certificate and key for platform domain
-                        "RUN curl "+ tlsConfigurationUrl+"/platform-tls/servercert.pem" +" -o servercert.pem\n" +
+                        "RUN curl "+ tlsConfigurationUrl+"/platform-tls/cert/"+token + " -o servercert.pem\n" +
                         "RUN mv ./servercert.pem /etc/certs/platform-tls/servercert.pem\n" +
-                        "RUN curl "+ tlsConfigurationUrl+"/platform-tls/serverkey.pem" +" -o serverkey.pem\n" +
+                        "RUN curl "+ tlsConfigurationUrl+"/platform-tls/key/"+token +" -o serverkey.pem\n" +
                         "RUN mv ./serverkey.pem /etc/certs/platform-tls/serverkey.pem\n" +
                         "RUN chmod a+r /etc/certs/platform-tls/servercert.pem \\\n" +
                         "    && chmod a+r /etc/certs/platform-tls/serverkey.pem\n"+
@@ -178,14 +184,16 @@ public abstract class ComputeNode {
                         "CMD [\"/usr/local/bin/envoy\", \"-c\", \"/etc/front-envoy.yaml\", \"--service-cluster\", \"front-proxy\"]";
 
         String imageId;
-        try {
-            File dockerfile= new File("./configuration/Dockerfile-"+this.id);
-            try (FileWriter writer = new FileWriter(dockerfile)) {
-                writer.write(dockerfileString);
-                writer.flush();
-            }
 
-            //create custom envoy image
+        File dockerfile= new File("./configuration/Dockerfile-"+this.id);
+        try {
+            //write Dockerfile
+            FileWriter writer = new FileWriter(dockerfile);
+            writer.write(dockerfileString);
+            writer.flush();
+            writer.close();
+
+            //create custom envoy image using dockerfile
             imageId = dockerClient.buildImageCmd()
                     .withDockerfile(dockerfile)
                     .withForcerm(true)
@@ -196,44 +204,51 @@ public abstract class ComputeNode {
                     .awaitImageId();
             dockerfile.delete();
             logger.info("Envoy custom image build of node "+ id + " done");
-        } catch (IOException e) {
+        } catch (Exception e) {
             logger.error("Envoy custom image build of node "+ id +" failed");
-            throw new RuntimeException(e);
+            logger.error(e.getMessage());
+            return false;
+        } finally {
+            Orchestrator.securityTokenMap.remove(token);
         }
 
         //create Envoy container
         logger.info("Envoy container creation of node "+ id + " started");
+        try {
+            CreateContainerResponse container = dockerClient
+                    .createContainerCmd(imageId)
+                    .withName("envoy-"+ id)
+                    .withExposedPorts(new ArrayList<>(Arrays.asList(
+                            ExposedPort.tcp(443),
+                            ExposedPort.tcp(80),
+                            ExposedPort.tcp(10000)
+                    )))
+                    .withHostConfig(HostConfig.newHostConfig()
+                            .withDns(Configuration.DNS_API_IP)
+                            .withRestartPolicy(RestartPolicy.unlessStoppedRestart())
+                            .withPortBindings(new ArrayList<>(Arrays.asList(
+                                            PortBinding.parse(this.getIpAddress()+":80/tcp:80"),
+                                            PortBinding.parse(this.getIpAddress()+":443/tcp:443"),
+                                            PortBinding.parse(this.getIpAddress()+":10000/tcp:10000"))
+                                    )
+                            )
+                    )
+                    .exec();
 
-        CreateContainerResponse container = dockerClient
-                .createContainerCmd(imageId)
-                .withName("envoy-"+ id)
-                .withExposedPorts(new ArrayList<>(Arrays.asList(
-                        ExposedPort.tcp(443),
-                        ExposedPort.tcp(80),
-                        ExposedPort.tcp(10000)
-                )))
-                .withHostConfig(HostConfig.newHostConfig()
-                        .withDns(Configuration.DNS_API_IP)
-                        .withRestartPolicy(RestartPolicy.unlessStoppedRestart())
-                        .withPortBindings(new ArrayList<>(Arrays.asList(
-                                        PortBinding.parse(this.getIpAddress()+":80/tcp:80"),
-                                        PortBinding.parse(this.getIpAddress()+":443/tcp:443"),
-                                        PortBinding.parse(this.getIpAddress()+":10000/tcp:10000"))
-                                )
-                        )
-                )
-                .exec();
-
-        // start the container
-        dockerClient.startContainerCmd(container.getId()).exec();
+            // start the container
+            dockerClient.startContainerCmd(container.getId()).exec();
+        } catch (Exception e) {
+            logger.error("Envoy container creation of node "+ id + " failed");
+            return false;
+        }
 
         logger.info("Envoy container creation of node "+ id + " done");
-
 
         Orchestrator.envoyConfigurationServer.addTLSListenerToProxy(this.id, "default", "0.0.0.0");
         Orchestrator.envoyConfigurationServer.addDefaultRouteToProxy(this.id);
 
         logger.info("Envoy front proxy creation of node "+ id + " done");
+        return true;
     }
 
 

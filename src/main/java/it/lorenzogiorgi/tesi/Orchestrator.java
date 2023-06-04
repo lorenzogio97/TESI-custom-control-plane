@@ -5,6 +5,8 @@ import it.lorenzogiorgi.tesi.api.*;
 import it.lorenzogiorgi.tesi.common.*;
 import it.lorenzogiorgi.tesi.dns.DNSManagement;
 import it.lorenzogiorgi.tesi.envoy.EnvoyConfigurationServer;
+import it.lorenzogiorgi.tesi.utiliy.FileUtility;
+import it.lorenzogiorgi.tesi.utiliy.TokenUtiliy;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import spark.Request;
@@ -14,14 +16,15 @@ import spark.Spark;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class Orchestrator {
     public static EnvoyConfigurationServer envoyConfigurationServer= new EnvoyConfigurationServer();
-
     public static Gson gson=new Gson();
-
+    public static ConcurrentHashMap<String, Long> securityTokenMap = new ConcurrentHashMap<>();
     private static final Logger logger = LogManager.getLogger(Orchestrator.class.getName());
+
 
     public static void main(String[] arg) {
 
@@ -33,6 +36,10 @@ public class Orchestrator {
         Spark.port(Configuration.ORCHESTRATOR_API_PORT);
         Spark.staticFileLocation("/tls");
         Spark.get("/envoyconfiguration/:envoyNodeID", Orchestrator::serveEnvoyConfiguration);
+        Spark.get("/platform-tls/:what/:token", Orchestrator::servePlatformTls);
+        Spark.after((request, response) -> {
+            logger.info(String.format("%s %s", request.requestMethod(), request.url()));
+        });
 
         Spark.awaitInitialization();
 
@@ -47,12 +54,9 @@ public class Orchestrator {
         Spark.post("/logout", (Orchestrator::logout));
         Spark.post("/migrate/:username",(Orchestrator::migrate));
         Spark.post("/migration_feedback/:username/:edgeNodeId",(Orchestrator::finalizeMigration));
-        Spark.after((request, response) -> {
-                    logger.info(String.format("%s %s", request.requestMethod(), request.url()));
-                });
+
         envoyConfigurationServer.awaitTermination();
     }
-
 
 
     private static void initializeCloudNode() {
@@ -67,6 +71,48 @@ public class Orchestrator {
         DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, Configuration.PLATFORM_ORCHESTRATOR_DOMAIN, "A", 600, Configuration.ORCHESTRATOR_API_IP);
         DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, Configuration.PLATFORM_ENVOY_CONF_SERVER_DOMAIN, "A", 600, Configuration.ENVOY_CONFIGURATION_SERVER_IP);
     }
+
+
+    private static String servePlatformTls(Request request, Response response) {
+        String what = request.params(":what");
+        String token = request.params(":token");
+        System.out.println(what);
+        System.out.println(token);
+
+        if(!(Objects.equals(what, "cert") || Objects.equals(what, "key")) || token == null) {
+            System.out.println("primo if");
+            System.out.println(what);
+            System.out.println(token);
+            response.status(400);
+            return "";
+        }
+
+        //check if the token is valid
+        System.out.println(securityTokenMap.getOrDefault(token, 0L));
+        if(securityTokenMap.getOrDefault(token, 0L)<System.currentTimeMillis()) {
+            System.out.println("secondo if");
+            response.status(401);
+            return "";
+        }
+
+
+        String returnContent = null;
+        switch (what) {
+            case "cert":
+                returnContent = FileUtility.readTextFile("./src/main/resources/tls/platform-tls/servercert.pem");
+                break;
+
+            case "key":
+                returnContent = FileUtility.readTextFile("./src/main/resources/tls/platform-tls/serverkey.pem");
+                break;
+        }
+
+        logger.info("RETURN CONTENT:"+returnContent);
+        response.type("text/plain");
+        response.status(200);
+        return returnContent;
+    }
+
 
 
     private static String serveEnvoyConfiguration(Request request, Response response) {
@@ -214,9 +260,7 @@ public class Orchestrator {
             user.setCookie(null);
 
             //compute authId cookie
-            byte[] array = new byte[32];
-            new Random().nextBytes(array);
-            String authId = toHexString(array);
+            String authId = TokenUtiliy.generateRandomHexString(Configuration.CLIENT_AUTHENTICATION_TOKEN_LENGTH);
 
             //get nearest MECNode
             List<String> nearestEdgeNodeIDs = findNearestMECNode();
@@ -441,18 +485,5 @@ public class Orchestrator {
         return "";
     }
 
-
-
-    private static String toHexString(byte[] bytes) {
-        char[] hexArray = {'0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'};
-        char[] hexChars = new char[bytes.length * 2];
-        int v;
-        for ( int j = 0; j < bytes.length; j++ ) {
-            v = bytes[j] & 0xFF;
-            hexChars[j*2] = hexArray[v/16];
-            hexChars[j*2 + 1] = hexArray[v%16];
-        }
-        return new String(hexChars);
-    }
 
 }

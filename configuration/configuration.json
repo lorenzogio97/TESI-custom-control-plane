@@ -12,6 +12,9 @@
   "PLATFORM_ENVOY_CONF_SERVER_DOMAIN": "envoy-controlplane.lorenzogiorgi.com",
   "PLATFORM_ORCHESTRATOR_DOMAIN": "orchestrator.lorenzogiorgi.com",
   "PLATFORM_NODE_BASE_DOMAIN": "edge.lorenzogiorgi.com",
+  "CLIENT_AUTHENTICATION_TOKEN_LENGTH": 32,
+  "CRYPTO_TOKEN_LENGTH": 32,
+  "CRYPTO_TOKEN_SECONDS_VALIDITY": 240,
   "cloudNode": {
     "id": "cloud",
     "ipAddress": "172.16.3.49",

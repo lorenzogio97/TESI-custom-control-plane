@@ -19,8 +19,14 @@ public class EdgeNode extends ComputeNode{
 
     public void initialize() {
         cleanupContainer();
-        initializeFrontProxy();
+        boolean initialized = initializeFrontProxy();
         cleanupDanglingImages();
+
+        if(!initialized) {
+            logger.error("Edge Envoy node initialization failed");
+            Configuration.edgeNodes.remove(id);
+            return;
+        }
 
         Orchestrator.envoyConfigurationServer.addPublicRouteToProxy(this.id, "/orchestrator", "orchestrator_cluster");
 
