@@ -11,6 +11,7 @@ public class User {
 
     private String formerEdgeNodeId;
     private UserStatus status;
+    private Long sessionExpiration;
 
     public String getUsername() {
         return username;
@@ -66,6 +67,14 @@ public class User {
 
     public void setStatus(UserStatus status) {
         this.status = status;
+    }
+
+    public Long getSessionExpiration() {
+        return sessionExpiration;
+    }
+
+    public void setSessionExpiration(Long sessionExpiration) {
+        this.sessionExpiration = sessionExpiration;
     }
 
     @Override

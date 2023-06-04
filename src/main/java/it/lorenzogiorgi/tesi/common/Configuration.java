@@ -31,10 +31,11 @@ public class Configuration {
     public static String ENVOY_CONFIGURATION_SERVER_IP;
 
     /**
-     * Orchestrator API configuration
+     * Orchestrator configuration
      */
     public static int ORCHESTRATOR_API_PORT;
     public static String ORCHESTRATOR_API_IP;
+    public static int ORCHESTRATOR_USER_GARBAGE_DELAY;
 
     /**
      * Platform domain configuration
@@ -48,9 +49,15 @@ public class Configuration {
     /**
      * Security Token
      */
-    public static int CLIENT_AUTHENTICATION_TOKEN_LENGTH;
+
     public static int CRYPTO_TOKEN_SECONDS_VALIDITY;
     public static int CRYPTO_TOKEN_LENGTH;
+
+    /**
+     * Client session configuration
+     */
+    public static int CLIENT_AUTHENTICATION_TOKEN_LENGTH;
+    public static int CLIENT_SESSION_DURATION;
 
     /**
      * Applications information

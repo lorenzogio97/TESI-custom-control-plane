@@ -18,13 +18,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class Orchestrator {
     public static EnvoyConfigurationServer envoyConfigurationServer= new EnvoyConfigurationServer();
     public static Gson gson=new Gson();
     public static ConcurrentHashMap<String, Long> securityTokenMap = new ConcurrentHashMap<>();
     private static final Logger logger = LogManager.getLogger(Orchestrator.class.getName());
-
+    private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
     public static void main(String[] arg) {
 
@@ -56,9 +59,45 @@ public class Orchestrator {
         Spark.post("/migrate/:username",(Orchestrator::migrate));
         Spark.post("/migration_feedback/:username/:edgeNodeId",(Orchestrator::finalizeMigration));
 
+        //schedule userGarbageCollector execution
+        scheduler.scheduleWithFixedDelay(Orchestrator::userGarbageCollector, Configuration.CLIENT_SESSION_DURATION,
+                Configuration.ORCHESTRATOR_USER_GARBAGE_DELAY, TimeUnit.SECONDS);
+
         envoyConfigurationServer.awaitTermination();
     }
 
+    private static void userGarbageCollector() {
+        Long checkTime = System.currentTimeMillis();
+        logger.info("Start userGarbageCollector execution");
+        for(User user: Configuration.users.values()) {
+            synchronized (user) {
+                //user not logged, continue
+                if (user.getCookie() == null && user.getCurrentEdgeNodeId() == null) continue;
+                //user logged, check the timestamp
+                if (user.getSessionExpiration() < checkTime) {
+                    //remove all user resources
+                    if (user.getCurrentEdgeNodeId() != null) {
+                        Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).deallocateUserResources(user.getUsername());
+                        envoyConfigurationServer.deleteAllUserResourcesFromProxy(user.getUsername(), user.getCurrentEdgeNodeId());
+                    }
+                    if (user.getFormerEdgeNodeId() != null) {
+                        Configuration.edgeNodes.get(user.getFormerEdgeNodeId()).deallocateUserResources(user.getUsername());
+                        envoyConfigurationServer.deleteAllUserResourcesFromProxy(user.getUsername(), user.getFormerEdgeNodeId());
+                    }
+
+                    //reset user data structure
+                    user.setCurrentEdgeNodeId(null);
+                    user.setFormerEdgeNodeId(null);
+                    user.setCookie(null);
+                    user.setStatus(null);
+                    user.setSessionExpiration(null);
+                    logger.trace("User "+user.getUsername()+ " garbage collected");
+
+                }
+            }
+        }
+        logger.info("End userGarbageCollector execution");
+    }
 
     private static void initializeCloudNode() {
         CloudNode cloudNode = Configuration.cloudNode;
@@ -67,6 +106,27 @@ public class Orchestrator {
         logger.info("Cloud node initialized");
     }
 
+    private static void initializeEdgeNodes() {
+        List<Thread> threadList = new ArrayList<>();
+        for(EdgeNode edgeNode: Configuration.edgeNodes.values()) {
+            Thread t = new Thread(edgeNode::initialize);
+            t.setName(edgeNode.getId());
+            threadList.add(t);
+            t.start();
+        }
+
+        for (Thread thread : threadList) {
+            try {
+                thread.join(180000);
+            } catch (InterruptedException e) {
+                String edgeId = thread.getName();
+                //since edge node has not been successfully initialized, it is removed from available ones.
+                Configuration.edgeNodes.remove(edgeId);
+                logger.warn("EdgeNode "+edgeId+ " has not been initialized correctly");
+            }
+        }
+        logger.info("Edge nodes initialized");
+    }
 
     private static void initializeDNS() {
         DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, Configuration.PLATFORM_ORCHESTRATOR_DOMAIN, "A", 600, Configuration.ORCHESTRATOR_API_IP);
@@ -122,7 +182,6 @@ public class Orchestrator {
             return "";
         }
 
-
         String returnContent = null;
         switch (what) {
             case "cert":
@@ -138,8 +197,6 @@ public class Orchestrator {
         response.status(200);
         return returnContent;
     }
-
-
 
     private static String serveEnvoyConfiguration(Request request, Response response) {
         String proxyId = request.params(":envoyNodeID");
@@ -223,28 +280,6 @@ public class Orchestrator {
                 "              filename: /etc/ssl/certs/ca-certificates.crt";
     }
 
-    private static void initializeEdgeNodes() {
-        List<Thread> threadList = new ArrayList<>();
-        for(EdgeNode edgeNode: Configuration.edgeNodes.values()) {
-            Thread t = new Thread(edgeNode::initialize);
-            t.setName(edgeNode.getId());
-            threadList.add(t);
-            t.start();
-        }
-
-        for (Thread thread : threadList) {
-            try {
-                thread.join(180000);
-            } catch (InterruptedException e) {
-                String edgeId = thread.getName();
-                //since edge node has not been successfully initialized, it is removed from available ones.
-                Configuration.edgeNodes.remove(edgeId);
-                logger.warn("EdgeNode "+edgeId+ " has not been initialized correctly");
-            }
-        }
-        logger.info("Edge nodes initialized");
-    }
-
     private static List<String> findNearestMECNode() {
         List<String> mecNodes  = new ArrayList<>(Configuration.edgeNodes.keySet());
         Collections.shuffle(mecNodes);
@@ -254,6 +289,7 @@ public class Orchestrator {
 
     private static String login(Request request, Response response) {
         String requestBody = request.body();
+        String cookie = request.cookie("authID");
         LoginRequest loginRequest = gson.fromJson(requestBody, LoginRequest.class);
 
         //check username and password
@@ -274,13 +310,11 @@ public class Orchestrator {
                 return gson.toJson(new LoginResponse(null));
             }
 
-            //if user was already logged, we need to destroy all previously allocated resources
-            if (user.getCurrentEdgeNodeId() != null) {
-                Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).deallocateUserResources(user.getUsername());
+            //if user was already logged, we have its resources already allocated, so we only need to extend its session
+            if(user.getCurrentEdgeNodeId()!=null && user.getCookie()!=null) {
+                return extendLogin(request, response);
             }
-            if (user.getFormerEdgeNodeId() != null) {
-                Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).deallocateUserResources(user.getUsername());
-            }
+
             user.setCurrentEdgeNodeId(null);
             user.setFormerEdgeNodeId(null);
             user.setCookie(null);
@@ -297,9 +331,10 @@ public class Orchestrator {
                 EdgeNode edgeNode = Configuration.edgeNodes.get(edgeId);
                 allocated = edgeNode.allocateUserResources(user.getUsername(), authId, false);
                 if (allocated) {
-                    //set EdgeNodeId and cookie in User data structure
+                    //set EdgeNodeId, and session expiration in User data structure
                     user.setCurrentEdgeNodeId(edgeId);
                     user.setCookie(authId);
+                    user.setSessionExpiration(System.currentTimeMillis()+Configuration.CLIENT_SESSION_DURATION*1000L);
                     break;
                 }
             }
@@ -311,7 +346,6 @@ public class Orchestrator {
                 return gson.toJson(new LoginResponse(null));
             }
 
-
             //domain name of edge assigned to user
             String domainName= user.getCurrentEdgeNodeId()+"."+Configuration.PLATFORM_NODE_BASE_DOMAIN;
 
@@ -320,7 +354,45 @@ public class Orchestrator {
             response.status(200);
             response.type("application/json");
             response.header("Alt-Svc", "h2=\""+domainName+":443\";");
-            response.cookie("." + Configuration.PLATFORM_DOMAIN, "/", "authID", authId, 60*60*6, false, false);
+            response.cookie("." + Configuration.PLATFORM_DOMAIN, "/", "authID", authId,
+                    Configuration.CLIENT_SESSION_DURATION, false, false);
+            return gson.toJson(new LoginResponse(Configuration.PLATFORM_CLOUD_DOMAIN));
+        }
+    }
+
+    private static String extendLogin(Request request, Response response) {
+        String requestBody = request.body();
+        LoginRequest loginRequest = gson.fromJson(requestBody, LoginRequest.class);
+
+        //check username and password
+        User user= Configuration.users.get(loginRequest.getUsername());
+
+        //check if user exists
+        if(user==null) {
+            response.status(400);
+            response.type("application/json");
+            return "";
+        }
+
+        synchronized(user) {
+            //check password and cookie
+            if(user.getPassword()==null || !user.getPassword().equals(loginRequest.getPassword()) ||
+                    user.getCookie()==null) {
+                response.status(401);
+                response.type("application/json");
+                return gson.toJson(new LoginResponse(null));
+            }
+
+            //extend session
+            user.setSessionExpiration(System.currentTimeMillis()+Configuration.CLIENT_SESSION_DURATION*1000L);
+
+            String domainName= user.getCurrentEdgeNodeId()+"."+Configuration.PLATFORM_NODE_BASE_DOMAIN;
+
+            response.status(200);
+            response.type("application/json");
+            response.header("Alt-Svc", "h2=\""+domainName+":443\";");
+            response.cookie("." + Configuration.PLATFORM_DOMAIN, "/", "authID", user.getCookie(),
+                    Configuration.CLIENT_SESSION_DURATION , false, false);
             return gson.toJson(new LoginResponse(Configuration.PLATFORM_CLOUD_DOMAIN));
         }
     }
@@ -365,13 +437,13 @@ public class Orchestrator {
             user.setFormerEdgeNodeId(null);
             user.setCookie(null);
             user.setStatus(null);
+            user.setSessionExpiration(null);
 
             response.status(200);
             response.header("Alt-Svc", "clear");
             return gson.toJson(new LogoutResponse());
         }
     }
-
 
     private static String migrate(Request request, Response response) {
         String username = request.params(":username");
@@ -510,6 +582,5 @@ public class Orchestrator {
         response.status(204);
         return "";
     }
-
 
 }
