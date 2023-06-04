@@ -39,7 +39,7 @@ public class Orchestrator {
         Spark.get("/platform-tls/:what/:token", Orchestrator::servePlatformTls);
         Spark.get("/envoy-mtls/:what/:token", Orchestrator::serveEnvoymTls);
         Spark.after((request, response) -> {
-            logger.info(String.format("%s %s %s", request.requestMethod(), request.url(), request.body()));
+            logger.trace(String.format("%s %s %s", request.requestMethod(), request.url(), request.body()));
         });
 
         Spark.awaitInitialization();
