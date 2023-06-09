@@ -23,7 +23,6 @@ All those requests triggers modification in resource allocated on Edge nodes, bo
 
 The configuration file is placed inside /configuration folder.
 ```
-{
   "DNS_API_IP": (str) IPv4 of DNS server of the platform (in this implementation, recursive and authoritative DNS are reachable using the same IP e.g. they are on the same host)
   "DNS_API_PORT": (int) Port of PowerDNS API to update DNS configuration
   "DNS_API_SERVER_ID": (str) server ID assigned to the PowerDNS server (see PowerDNS documentation for more detail)
