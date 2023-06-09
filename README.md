@@ -19,7 +19,7 @@ All those requests triggers modification in resource allocated on Edge nodes, bo
 
 --- 
 
-#Configuration file
+## Configuration file
 
 The configuration file is placed inside /configuration folder.
 ```
