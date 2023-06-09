@@ -1,5 +1,4 @@
 # Master Thesis - Platform Orchestrator
----
 
 This repository contains the code related to the Orchestrator for the edge platform developed during my master thesis.
 This software is responsible for creating all software infrastructure for the edge platform at startup, receiving login/logout request from client and migration request from Mobility Management.
