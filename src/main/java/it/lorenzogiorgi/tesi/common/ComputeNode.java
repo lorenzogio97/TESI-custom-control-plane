@@ -238,6 +238,7 @@ public abstract class ComputeNode {
             // start the container
             dockerClient.startContainerCmd(container.getId()).exec();
         } catch (Exception e) {
+            e.printStackTrace();
             logger.error("Envoy container creation of node "+ id + " failed");
             return false;
         }

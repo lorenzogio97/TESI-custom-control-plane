@@ -23,7 +23,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class Orchestrator {
-    public static EnvoyConfigurationServer envoyConfigurationServer= new EnvoyConfigurationServer();
+    public static EnvoyConfigurationServer envoyConfigurationServer;
     public static Gson gson=new Gson();
     public static ConcurrentHashMap<String, Long> securityTokenMap = new ConcurrentHashMap<>();
     private static final Logger logger = LogManager.getLogger(Orchestrator.class.getName());
@@ -31,37 +31,49 @@ public class Orchestrator {
 
     public static void main(String[] arg) {
 
+        long t0 = System.currentTimeMillis();
         //initialize DNS for Auth, Orchestrator and Envoy conf server.
         initializeDNS();
+        long t1 = System.currentTimeMillis();
+
+        envoyConfigurationServer = new EnvoyConfigurationServer();
+        long t2 = System.currentTimeMillis();
+
         // keystone creation from certificate: https://stackoverflow.com/questions/906402/how-to-import-an-existing-x-509-certificate-and-private-key-in-java-keystore-to
         Spark.secure("./src/main/resources/server.keystore", "lorenzo", null, null);
         Spark.ipAddress(Configuration.ORCHESTRATOR_API_IP);
         Spark.port(Configuration.ORCHESTRATOR_API_PORT);
-        Spark.staticFileLocation("/tls");
+
         Spark.get("/envoyconfiguration/:envoyNodeID", Orchestrator::serveEnvoyConfiguration);
         Spark.get("/platform-tls/:what/:token", Orchestrator::servePlatformTls);
         Spark.get("/envoy-mtls/:what/:token", Orchestrator::serveEnvoymTls);
         Spark.after((request, response) -> {
             logger.trace(String.format("%s %s %s", request.requestMethod(), request.url(), request.body()));
         });
-
         Spark.awaitInitialization();
+        long t3 = System.currentTimeMillis();
 
-        //initialize edge nodes
-        initializeEdgeNodes();
-
-        //initialize cloud Envoy node
-        initializeCloudNode();
+        //initialize node nodes
+        initializeNodes();
+        long t4 = System.currentTimeMillis();
 
         //API for user needs to be available after Edgenode initialization
         Spark.post("/login", (Orchestrator::login));
         Spark.post("/logout", (Orchestrator::logout));
-        Spark.post("/migrate/:username",(Orchestrator::migrate));
-        Spark.post("/migration_feedback/:username/:edgeNodeId",(Orchestrator::finalizeMigration));
+        Spark.post("/migrate/:username", (Orchestrator::migrate));
+        Spark.post("/migration_feedback/:username/:edgeNodeId", (Orchestrator::finalizeMigration));
 
         //schedule userGarbageCollector execution
         scheduler.scheduleWithFixedDelay(Orchestrator::userGarbageCollector, Configuration.CLIENT_SESSION_DURATION,
                 Configuration.ORCHESTRATOR_USER_GARBAGE_DELAY, TimeUnit.SECONDS);
+
+        long t5 = System.currentTimeMillis();
+
+        System.out.println("Record DNS: " + (t1 - t0));
+        System.out.println("xDS API: " + (t2 - t1));
+        System.out.println("Conf REST API: " + (t3 - t2));
+        System.out.println("Node initialization: " + (t4 - t3));
+        System.out.println("User REST API: " + (t5 - t4));
 
         envoyConfigurationServer.awaitTermination();
     }
@@ -99,15 +111,9 @@ public class Orchestrator {
         logger.info("End userGarbageCollector execution");
     }
 
-    private static void initializeCloudNode() {
-        CloudNode cloudNode = Configuration.cloudNode;
-        cloudNode.initialize();
-        DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, Configuration.PLATFORM_CLOUD_DOMAIN, "A", 3600, cloudNode.getIpAddress());
-        logger.info("Cloud node initialized");
-    }
-
-    private static void initializeEdgeNodes() {
+    private static void initializeNodes() {
         List<Thread> threadList = new ArrayList<>();
+        //edge nodes
         for(EdgeNode edgeNode: Configuration.edgeNodes.values()) {
             Thread t = new Thread(edgeNode::initialize);
             t.setName(edgeNode.getId());
@@ -115,22 +121,42 @@ public class Orchestrator {
             t.start();
         }
 
+        //cloud node
+        CloudNode cloudNode = Configuration.cloudNode;
+        Thread t = new Thread(cloudNode::initialize);
+        t.setName(cloudNode.getId());
+        threadList.add(t);
+        t.start();
+
+        //wait all thread to finish
         for (Thread thread : threadList) {
             try {
-                thread.join(180000);
+                thread.join();
             } catch (InterruptedException e) {
                 String edgeId = thread.getName();
                 //since edge node has not been successfully initialized, it is removed from available ones.
                 Configuration.edgeNodes.remove(edgeId);
-                logger.warn("EdgeNode "+edgeId+ " has not been initialized correctly");
+                logger.warn("Node "+edgeId+ " has not been initialized correctly");
             }
         }
-        logger.info("Edge nodes initialized");
+        logger.info("Compute nodes initialized");
     }
 
     private static void initializeDNS() {
-        DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, Configuration.PLATFORM_ORCHESTRATOR_DOMAIN, "A", 600, Configuration.ORCHESTRATOR_API_IP);
-        DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, Configuration.PLATFORM_ENVOY_CONF_SERVER_DOMAIN, "A", 600, Configuration.ENVOY_CONFIGURATION_SERVER_IP);
+        DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, Configuration.PLATFORM_ORCHESTRATOR_DOMAIN, "A", 3600, Configuration.ORCHESTRATOR_API_IP);
+        DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, Configuration.PLATFORM_ENVOY_CONF_SERVER_DOMAIN, "A", 3600, Configuration.ENVOY_CONFIGURATION_SERVER_IP);
+
+        DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, Configuration.PLATFORM_CLOUD_DOMAIN, "A", 3600, Configuration.cloudNode.getIpAddress());
+        for(EdgeNode edgeNode: Configuration.edgeNodes.values()) {
+            //update DNS entry for Edge Proxy
+            String id = edgeNode.getId();
+            String proxyDomain = id +"."+Configuration.PLATFORM_NODE_BASE_DOMAIN;
+            if(DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, proxyDomain, "A",  3600, edgeNode.getIpAddress())) {
+                logger.info("DNS record for node "+ id + " added to DNS Server");
+            } else {
+                logger.warn("Error during DNS record add/update for node "+ id);
+            }
+        }
     }
 
     private static String serveEnvoymTls(Request request, Response response) {
@@ -240,7 +266,7 @@ public class Orchestrator {
                 "        - endpoint:\n" +
                 "            address:\n" +
                 "              socket_address:\n" +
-                "                address: "+Configuration.PLATFORM_ORCHESTRATOR_DOMAIN+"\n" +
+                "                address: "+Configuration.PLATFORM_ENVOY_CONF_SERVER_DOMAIN+"\n" +
                 "                port_value: "+Configuration.ENVOY_CONFIGURATION_SERVER_PORT+"\n" +
                 "    http2_protocol_options: {}\n" +
                 "    name: xds_cluster\n" +
@@ -537,7 +563,6 @@ public class Orchestrator {
         }
 
     }
-
 
     private static String finalizeMigration(Request request, Response response) {
         String username = request.params(":username");
