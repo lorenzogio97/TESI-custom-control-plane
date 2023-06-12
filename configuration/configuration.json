@@ -14,18 +14,18 @@
   "PLATFORM_ORCHESTRATOR_DOMAIN": "orchestrator.lorenzogiorgi.com",
   "PLATFORM_NODE_BASE_DOMAIN": "edge.lorenzogiorgi.com",
   "CLIENT_AUTHENTICATION_TOKEN_LENGTH": 32,
-  "CLIENT_SESSION_DURATION": 60,
+  "CLIENT_SESSION_DURATION": 3600,
   "CRYPTO_TOKEN_LENGTH": 32,
   "CRYPTO_TOKEN_SECONDS_VALIDITY": 240,
   "cloudNode": {
     "id": "cloud",
-    "ipAddress": "172.16.3.49",
+    "ipAddress": "172.16.5.14",
     "dockerPort": 2376
   },
   "edgeNodes": {
     "edge1": {
       "id": "edge1",
-      "ipAddress": "172.16.4.48",
+      "ipAddress": "172.16.4.0",
       "dockerPort": 2376
     },
     "edge2": {
@@ -35,7 +35,7 @@
     },
     "edge3": {
       "id": "edge3",
-      "ipAddress": "172.16.5.14",
+      "ipAddress": "172.16.3.49",
       "dockerPort": 2376
     }
   },
