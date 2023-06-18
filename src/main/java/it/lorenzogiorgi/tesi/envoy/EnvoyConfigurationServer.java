@@ -36,6 +36,7 @@ import org.apache.logging.log4j.Logger;
 import java.io.File;
 import java.io.IOException;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 public class EnvoyConfigurationServer {
     private static SimpleCache<String> globalCache;
@@ -64,6 +65,8 @@ public class EnvoyConfigurationServer {
 
             ServerBuilder<NettyServerBuilder> builder =
                     NettyServerBuilder.forPort(Configuration.ENVOY_CONFIGURATION_SERVER_PORT, creds)
+                            .permitKeepAliveTime(60, TimeUnit.SECONDS)
+                            .permitKeepAliveWithoutCalls(true)
                             .addService(v3DiscoveryServer.getClusterDiscoveryServiceImpl())
                             .addService(v3DiscoveryServer.getEndpointDiscoveryServiceImpl())
                             .addService(v3DiscoveryServer.getListenerDiscoveryServiceImpl())
@@ -203,8 +206,6 @@ public class EnvoyConfigurationServer {
                                 .addHeaders(HeaderMatcher.newBuilder().setName("cookie").setStringMatch(StringMatcher.newBuilder().setContains("authID="+userCookie))))
                 .setRoute(
                         RouteAction.newBuilder()
-                                .setTimeout(Duration.newBuilder()
-                                        .setSeconds(5))
                                 .setPrefixRewrite("/")
                                 .setCluster(username+"-"+destinationCluster))
                 .build();

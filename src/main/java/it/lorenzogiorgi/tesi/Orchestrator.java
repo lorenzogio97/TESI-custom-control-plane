@@ -268,9 +268,18 @@ public class Orchestrator {
                 "              socket_address:\n" +
                 "                address: "+Configuration.PLATFORM_ENVOY_CONF_SERVER_DOMAIN+"\n" +
                 "                port_value: "+Configuration.ENVOY_CONFIGURATION_SERVER_PORT+"\n" +
-                "    http2_protocol_options: {}\n" +
                 "    name: xds_cluster\n" +
                 "    type: STRICT_DNS\n"+
+                "    typed_extension_protocol_options:\n" +
+                "      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:\n" +
+                "        \"@type\": type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions\n" +
+                "        common_http_protocol_options:\n" +
+                "          idle_timeout: 0s\n"+
+                "        explicit_http_config:\n"+
+                "          http2_protocol_options:\n"+
+                "            connection_keepalive:\n"+
+                "              interval: 75s\n"+
+                "              timeout: 10s\n"+
                 "    transport_socket:\n" +
                 "      name: envoy.transport_sockets.tls\n" +
                 "      typed_config:\n" +
