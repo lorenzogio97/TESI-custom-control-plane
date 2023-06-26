@@ -17,6 +17,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class Configuration {
     /**
+     * Flags to enable functions for performance/comparative testing
+     */
+    public static boolean ENABLE_DNS;
+    public static boolean PERFORMANCE_TRACING;
+
+
+    /**
      * Authoritative DNS API configuration
      */
     public static String DNS_API_IP;

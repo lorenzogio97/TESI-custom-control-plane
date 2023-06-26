@@ -1,4 +1,6 @@
 {
+  "ENABLE_DNS": true,
+  "PERFORMANCE_TRACING": true,
   "DNS_API_IP": "172.16.5.14",
   "DNS_API_PORT": 8081,
   "DNS_API_SERVER_ID": "localhost",
@@ -45,14 +47,6 @@
       "microservices": [
         {
           "name": "echo",
-          "imageName": "strm/helloworld-http",
-          "imageTag": "latest",
-          "exposedPort": 80,
-          "maxCPU": 1,
-          "maxMemory": 512
-        },
-        {
-          "name": "echo2",
           "imageName": "strm/helloworld-http",
           "imageTag": "latest",
           "exposedPort": 80,
