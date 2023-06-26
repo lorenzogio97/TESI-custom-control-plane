@@ -335,7 +335,6 @@ public class Orchestrator {
         t0 = System.currentTimeMillis();
 
         String requestBody = request.body();
-        String cookie = request.cookie("authID");
         LoginRequest loginRequest = gson.fromJson(requestBody, LoginRequest.class);
 
         //check username and password
@@ -520,7 +519,7 @@ public class Orchestrator {
 
     private static String migrate(Request request, Response response) {
         // Performance Evaluation
-        long t0,t1,t2,t3,t4,t5;
+        long t0,t1,t2,t3;
         t0 = System.currentTimeMillis();
 
         String username = request.params(":username");
