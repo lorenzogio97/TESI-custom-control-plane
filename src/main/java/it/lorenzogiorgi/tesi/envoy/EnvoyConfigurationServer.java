@@ -192,6 +192,7 @@ public class EnvoyConfigurationServer {
 
         proxiesSnapshot.get(proxyId).addListener(newListener);
         updateProxyCacheSnapshot(proxyId);
+        logger.trace("addTLSListenerToProxy: added Listener at edge "+proxyId+" with bind address "+bindIPAddress);
 
     }
 
@@ -213,6 +214,7 @@ public class EnvoyConfigurationServer {
 
         proxiesSnapshot.get(proxyId).addRoute(route);
         updateProxyCacheSnapshot(proxyId);
+        logger.trace("addUserRouteToProxy: added User route at edge "+proxyId+" for user "+username+ ", prefix:"+prefix);
     }
 
     public void addPublicRouteToProxy(String proxyId, String prefix, String destinationCluster) {
@@ -293,7 +295,6 @@ public class EnvoyConfigurationServer {
 
 
         proxiesSnapshot.get(proxyId).addRoute(route);
-
         updateProxyCacheSnapshot(proxyId);
     }
 
@@ -350,6 +351,7 @@ public class EnvoyConfigurationServer {
 
         proxiesSnapshot.get(proxyId).addCluster(newCluster);
         updateProxyCacheSnapshot(proxyId);
+        logger.trace("addClusterToProxy: added Cluster at edge "+proxyId+" for user "+username+ ", clusterName:"+clusterName);
     }
 
     public void convertRouteToMigratingByUserFromProxy(String username, String sourceProxyId, String destinationProxyId) {
