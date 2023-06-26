@@ -6,6 +6,7 @@ import it.lorenzogiorgi.tesi.common.*;
 import it.lorenzogiorgi.tesi.dns.DNSManagement;
 import it.lorenzogiorgi.tesi.envoy.EnvoyConfigurationServer;
 import it.lorenzogiorgi.tesi.utiliy.FileUtility;
+import it.lorenzogiorgi.tesi.utiliy.TestUtility;
 import it.lorenzogiorgi.tesi.utiliy.TokenUtiliy;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -69,11 +70,17 @@ public class Orchestrator {
 
         long t5 = System.currentTimeMillis();
 
+        if (Configuration.PERFORMANCE_TRACING)
+            TestUtility.writeExperimentData("startup", new String[]{String.valueOf(t1-t0),
+                    String.valueOf(t2-t1), String.valueOf(t3-t2), String.valueOf(t4-t3), String.valueOf(t5-t4)});
+
+        /*
         System.out.println("Record DNS: " + (t1 - t0));
         System.out.println("xDS API: " + (t2 - t1));
         System.out.println("Conf REST API: " + (t3 - t2));
         System.out.println("Node initialization: " + (t4 - t3));
         System.out.println("User REST API: " + (t5 - t4));
+        */
 
         envoyConfigurationServer.awaitTermination();
     }
@@ -323,6 +330,10 @@ public class Orchestrator {
 
 
     private static String login(Request request, Response response) {
+        // Performance Evaluation
+        long t0,t1,t2,t3;
+        t0 = System.currentTimeMillis();
+
         String requestBody = request.body();
         String cookie = request.cookie("authID");
         LoginRequest loginRequest = gson.fromJson(requestBody, LoginRequest.class);
@@ -349,6 +360,8 @@ public class Orchestrator {
             if(user.getCurrentEdgeNodeId()!=null && user.getCookie()!=null) {
                 return extendLogin(request, response);
             }
+
+            t1 = System.currentTimeMillis();
 
             user.setCurrentEdgeNodeId(null);
             user.setFormerEdgeNodeId(null);
@@ -381,10 +394,18 @@ public class Orchestrator {
                 return gson.toJson(new LoginResponse(null));
             }
 
+            t2 = System.currentTimeMillis();
+
             //domain name of edge assigned to user
             String domainName= user.getCurrentEdgeNodeId()+"."+Configuration.PLATFORM_NODE_BASE_DOMAIN;
 
             envoyConfigurationServer.addAltSvcRedirectRouteToProxy("cloud", user.getUsername(), authId, domainName);
+
+            t3 = System.currentTimeMillis();
+
+            if (Configuration.PERFORMANCE_TRACING)
+                TestUtility.writeExperimentData("login", new String[]{String.valueOf(t1-t0),
+                        String.valueOf(t2-t1), String.valueOf(t3-t2)});
 
             response.status(200);
             response.type("application/json");
@@ -433,6 +454,10 @@ public class Orchestrator {
     }
 
     private static String logout(Request request, Response response) {
+        // Performance Evaluation
+        long t0,t1,t2,t3,t4,t5;
+        t0 = System.currentTimeMillis();
+
         String userCookie = request.cookie("authID");
         String requestBody = request.body();
         LogoutRequest logoutRequest = gson.fromJson(requestBody, LogoutRequest.class);
@@ -455,17 +480,25 @@ public class Orchestrator {
                 return gson.toJson(new LogoutResponse());
             }
 
+            t1 = System.currentTimeMillis();
+
             //delete route and cluster related to a user
             Orchestrator.envoyConfigurationServer.deleteAllUserResourcesFromProxy(user.getUsername(), user.getCurrentEdgeNodeId());
             if (user.getFormerEdgeNodeId() != null) {
                 Orchestrator.envoyConfigurationServer.deleteAllUserResourcesFromProxy(user.getUsername(), user.getFormerEdgeNodeId());
             }
 
+            t2= System.currentTimeMillis();
+
             //remove containers
             Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).deallocateUserResources(user.getUsername());
 
+            t3 = System.currentTimeMillis();
+
             //deleteAltSvrRedirect on cloud Envoy node
             envoyConfigurationServer.deleteRouteByNameFromProxy("cloud", user.getUsername()+"-user");
+
+            t4 = System.currentTimeMillis();
 
             //reset fields in user data structure
             user.setCurrentEdgeNodeId(null);
@@ -474,6 +507,11 @@ public class Orchestrator {
             user.setStatus(null);
             user.setSessionExpiration(null);
 
+            t5 = System.currentTimeMillis();
+            if (Configuration.PERFORMANCE_TRACING)
+                TestUtility.writeExperimentData("logout", new String[]{String.valueOf(t1-t0),
+                        String.valueOf(t2-t1), String.valueOf(t3-t2), String.valueOf(t4-t3), String.valueOf(t5-t4)});
+
             response.status(200);
             response.header("Alt-Svc", "clear");
             return gson.toJson(new LogoutResponse());
@@ -481,6 +519,10 @@ public class Orchestrator {
     }
 
     private static String migrate(Request request, Response response) {
+        // Performance Evaluation
+        long t0,t1,t2,t3,t4,t5;
+        t0 = System.currentTimeMillis();
+
         String username = request.params(":username");
         MigrationRequest migrationRequest = gson.fromJson(request.body(), MigrationRequest.class);
         List<String> edgeNodeIDs = migrationRequest.getEdgeNodeList();
@@ -503,6 +545,8 @@ public class Orchestrator {
                 response.type("application/json");
                 return "";
             }
+
+            t1 = System.currentTimeMillis();
 
             //if user is already on the best MEC, no need to migrate
             if (user.getCurrentEdgeNodeId().equals(edgeNodeIDs.get(0))) {
@@ -557,6 +601,8 @@ public class Orchestrator {
                 return "";
             }
 
+            t2 = System.currentTimeMillis();
+
             //signal that user is migrating
             user.setStatus(UserStatus.MIGRATING);
 
@@ -566,6 +612,11 @@ public class Orchestrator {
 
             //redirect route to new Edge node
             envoyConfigurationServer.convertRouteToMigratingByUserFromProxy(username, user.getFormerEdgeNodeId(), user.getCurrentEdgeNodeId());
+
+            t3 = System.currentTimeMillis();
+            if (Configuration.PERFORMANCE_TRACING)
+                TestUtility.writeExperimentData("migrate", new String[]{String.valueOf(t1-t0),
+                        String.valueOf(t2-t1), String.valueOf(t3-t2)});
 
             response.status(204);
             return "";
