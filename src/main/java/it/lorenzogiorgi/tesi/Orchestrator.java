@@ -400,6 +400,13 @@ public class Orchestrator {
 
             envoyConfigurationServer.addAltSvcRedirectRouteToProxy("cloud", user.getUsername(), authId, domainName);
 
+            //TEST
+            if (Configuration.ENABLE_DNS) {
+                String userDomain = "lorenzo.user.lorenzogiorgi.com";
+                String edgeIPAddress = Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).getIpAddress();
+                DNSManagement.updateDNSRecord("lorenzogiorgi.com", userDomain, "A", Configuration.DNS_USER_TTL, edgeIPAddress);
+            }
+
             t3 = System.currentTimeMillis();
 
             if (Configuration.PERFORMANCE_TRACING)
@@ -411,6 +418,13 @@ public class Orchestrator {
             response.header("Alt-Svc", "h2=\""+domainName+":443\";");
             response.cookie("." + Configuration.PLATFORM_DOMAIN, "/", "authID", authId,
                     Configuration.CLIENT_SESSION_DURATION, false, false);
+
+            //TEST
+            if (Configuration.ENABLE_DNS) {
+                String userDomain = "lorenzo.user.lorenzogiorgi.com";
+                return gson.toJson(new LoginResponse(userDomain));
+            }
+
             return gson.toJson(new LoginResponse(Configuration.PLATFORM_CLOUD_DOMAIN));
         }
     }
@@ -511,6 +525,11 @@ public class Orchestrator {
                 TestUtility.writeExperimentData("logout", new String[]{String.valueOf(t1-t0),
                         String.valueOf(t2-t1), String.valueOf(t3-t2), String.valueOf(t4-t3), String.valueOf(t5-t4)});
 
+            if (Configuration.ENABLE_DNS) {
+                String userDomain = "lorenzo.user.lorenzogiorgi.com";
+                DNSManagement.deleteDNSRecord("lorenzogiorgi.com", userDomain, "A");
+            }
+
             response.status(200);
             response.header("Alt-Svc", "clear");
             return gson.toJson(new LogoutResponse());
@@ -569,6 +588,12 @@ public class Orchestrator {
                 user.setCurrentEdgeNodeId(user.getFormerEdgeNodeId());
                 user.setFormerEdgeNodeId(null);
 
+                //TEST
+                if (Configuration.ENABLE_DNS) {
+                    String userDomain = "lorenzo.user.lorenzogiorgi.com";
+                    String edgeIPAddress = Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).getIpAddress();
+                    DNSManagement.updateDNSRecord("lorenzogiorgi.com", userDomain, "A", Configuration.DNS_USER_TTL, edgeIPAddress);
+                }
 
             }
 
@@ -616,6 +641,13 @@ public class Orchestrator {
             if (Configuration.PERFORMANCE_TRACING)
                 TestUtility.writeExperimentData("migrate", new String[]{String.valueOf(t1-t0),
                         String.valueOf(t2-t1), String.valueOf(t3-t2)});
+
+            //TEST
+            if (Configuration.ENABLE_DNS) {
+                String userDomain = "lorenzo.user.lorenzogiorgi.com";
+                String edgeIPAddress = Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).getIpAddress();
+                DNSManagement.updateDNSRecord("lorenzogiorgi.com", userDomain, "A", Configuration.DNS_USER_TTL, edgeIPAddress);
+            }
 
             response.status(204);
             return "";

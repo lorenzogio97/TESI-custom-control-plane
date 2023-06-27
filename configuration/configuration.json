@@ -1,6 +1,7 @@
 {
   "ENABLE_DNS": true,
-  "PERFORMANCE_TRACING": true,
+  "DNS_USER_TTL": 60,
+  "PERFORMANCE_TRACING": false,
   "DNS_API_IP": "172.16.5.14",
   "DNS_API_PORT": 8081,
   "DNS_API_SERVER_ID": "localhost",

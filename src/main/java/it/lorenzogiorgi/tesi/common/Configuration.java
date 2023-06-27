@@ -20,6 +20,7 @@ public class Configuration {
      * Flags to enable functions for performance/comparative testing
      */
     public static boolean ENABLE_DNS;
+    public static int DNS_USER_TTL;
     public static boolean PERFORMANCE_TRACING;
 
 
