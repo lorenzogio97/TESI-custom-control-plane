@@ -10,6 +10,7 @@ import com.github.dockerjava.api.model.HostConfig;
 import com.github.dockerjava.api.model.RestartPolicy;
 import it.lorenzogiorgi.tesi.Orchestrator;
 import it.lorenzogiorgi.tesi.dns.DNSManagement;
+import it.lorenzogiorgi.tesi.utiliy.TestUtility;
 
 import java.util.Collections;
 import java.util.List;
@@ -34,6 +35,10 @@ public class EdgeNode extends ComputeNode{
 
 
     public boolean allocateUserResources(String username, String authCookie, boolean migration)  {
+        // Performance Evaluation
+        long t0, t1, t2, t3 = 0, t4 = 0, t5 = 0, t6;
+        t0 = System.currentTimeMillis();
+
         logger.info("Resource allocation on EdgeNode: "+ id + " for user: "+username);
         //get User resource to allocate
         User user = Configuration.users.get(username);
@@ -46,6 +51,8 @@ public class EdgeNode extends ComputeNode{
 
         //connect to Docker demon on the target MECNode
         DockerClient dockerClient = getDockerClient();
+
+        t1 = System.currentTimeMillis();
 
         logger.info("Pulling images on EdgeNode: "+ id + " for user: "+username);
         //pull required images
@@ -64,6 +71,9 @@ public class EdgeNode extends ComputeNode{
                 }
             }
         }
+
+        t2 = System.currentTimeMillis();
+
         logger.info("Containers creation on EdgeNode: "+ id + " for user: "+username);
         //run containers with the options specified
         for (Application application: applicationList) {
@@ -89,9 +99,13 @@ public class EdgeNode extends ComputeNode{
                     return false;
                 }
 
+                t3 = System.currentTimeMillis();
+
                 //get ip of the created container
                 InspectContainerResponse inspectContainerResponse = dockerClient.inspectContainerCmd(container.getId()).exec();
                 String ip = inspectContainerResponse.getNetworkSettings().getNetworks().get("bridge").getIpAddress();
+
+                t4 = System.currentTimeMillis();
 
                 //get Envoy front proxy ID
                 String proxyID = this.getId();
@@ -102,6 +116,8 @@ public class EdgeNode extends ComputeNode{
                 //set envoy clusters and routes
                 Orchestrator.envoyConfigurationServer.addClusterToProxy(proxyID, user.getUsername(), microservice.getName(), ip, microservice.getExposedPort());
 
+                t5 = System.currentTimeMillis();
+
                 if(migration) {
                     Orchestrator.envoyConfigurationServer.addFeedbackRouteToProxy(proxyID, user.getUsername(), endpoint,
                             authCookie, microservice.getName());
@@ -111,6 +127,13 @@ public class EdgeNode extends ComputeNode{
 
             }
         }
+
+        t6 = System.currentTimeMillis();
+        if (Configuration.PERFORMANCE_TRACING)
+            TestUtility.writeExperimentData("allocateUserResource", new String[]{String.valueOf(t1-t0), String.valueOf(t2-t1),
+                    String.valueOf(t3-t2), String.valueOf(t4-t3), String.valueOf(t5-t4), String.valueOf(t6-t5)});
+
+
         logger.info("Containers created on EdgeNode: "+ id + " for user: "+username);
         return true;
 
