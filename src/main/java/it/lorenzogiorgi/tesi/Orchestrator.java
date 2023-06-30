@@ -61,7 +61,7 @@ public class Orchestrator {
         //API for user needs to be available after Edgenode initialization
         Spark.post("/login", (Orchestrator::login));
         Spark.post("/logout", (Orchestrator::logout));
-        Spark.post("/migrate/:username", (Orchestrator::migrate));
+        Spark.post("/migrate", (Orchestrator::migrate));
         Spark.post("/migration_feedback/:username/:edgeNodeId", (Orchestrator::finalizeMigration));
 
         //schedule userGarbageCollector execution
@@ -541,9 +541,10 @@ public class Orchestrator {
         long t0,t1,t2,t3;
         t0 = System.currentTimeMillis();
 
-        String username = request.params(":username");
+
         MigrationRequest migrationRequest = gson.fromJson(request.body(), MigrationRequest.class);
         List<String> edgeNodeIDs = migrationRequest.getEdgeNodeList();
+        String username = migrationRequest.getUsername();
         logger.info("Migration request for user:"+username+ " EdgeNodeList:"+edgeNodeIDs);
 
         //find user to migrate
