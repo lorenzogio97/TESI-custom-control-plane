@@ -224,7 +224,6 @@ public abstract class ComputeNode {
                             ExposedPort.tcp(10000)
                     )))
                     .withHostConfig(HostConfig.newHostConfig()
-                            .withDns(Configuration.DNS_API_IP)
                             .withRestartPolicy(RestartPolicy.unlessStoppedRestart())
                             .withPortBindings(new ArrayList<>(Arrays.asList(
                                             PortBinding.parse(this.getIpAddress()+":80/tcp:80"),
