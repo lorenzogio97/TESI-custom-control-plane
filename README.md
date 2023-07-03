@@ -22,6 +22,9 @@ All those requests triggers modification in resource allocated on Edge nodes, bo
 
 The configuration file is placed inside /configuration folder.
 ```
+  "ENABLE_DNS": (bool) enable support for DNS based migration solution (only for comparison testing purposes)
+  "DNS_USER_TTL": (int) DNS TTL for DNS based migration solution (only for comparison testing purposes)
+  "PERFORMANCE_TRACING": (bool) enable time measurement of login/logout/migrate/userResourceAllocation (for performance testing)
   "DNS_API_IP": (str) IPv4 of DNS server of the platform (in this implementation, recursive and authoritative DNS are reachable using the same IP e.g. they are on the same host)
   "DNS_API_PORT": (int) Port of PowerDNS API to update DNS configuration
   "DNS_API_SERVER_ID": (str) server ID assigned to the PowerDNS server (see PowerDNS documentation for more detail)
