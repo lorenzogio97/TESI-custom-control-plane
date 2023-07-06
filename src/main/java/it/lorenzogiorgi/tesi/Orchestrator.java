@@ -81,9 +81,12 @@ public class Orchestrator {
         System.out.println("Node initialization: " + (t4 - t3));
         System.out.println("User REST API: " + (t5 - t4));
         */
+        // set TTL for bach DNS experiment
+        Spark.get("/dns/:ttl", (Orchestrator::setDNSTTL));
 
         envoyConfigurationServer.awaitTermination();
     }
+
 
     private static void userGarbageCollector() {
         Long checkTime = System.currentTimeMillis();
@@ -164,6 +167,29 @@ public class Orchestrator {
                 logger.warn("Error during DNS record add/update for node "+ id);
             }
         }
+    }
+
+    private static String setDNSTTL(Request request, Response response) {
+        String ttl_str = request.params(":ttl");
+
+        if (ttl_str.equals("no")) {
+            Configuration.ENABLE_DNS = false;
+            return "";
+        }
+
+        Integer ttl = null;
+        try {
+            ttl = Integer.parseInt(ttl_str);
+        } catch (Exception nfe) {
+            nfe.printStackTrace();
+            response.status(500);
+            return "";
+        }
+
+        Configuration.ENABLE_DNS = true;
+        Configuration.DNS_USER_TTL = ttl;
+        return "";
+
     }
 
     private static String serveEnvoymTls(Request request, Response response) {
