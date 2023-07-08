@@ -1,4 +1,4 @@
-package it.lorenzogiorgi.tesi.common;
+package it.lorenzogiorgi.tesi.configuration;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;

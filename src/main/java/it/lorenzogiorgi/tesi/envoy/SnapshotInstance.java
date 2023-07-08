@@ -10,7 +10,7 @@ import io.envoyproxy.envoy.config.route.v3.Route;
 import io.envoyproxy.envoy.config.route.v3.RouteConfiguration;
 import io.envoyproxy.envoy.config.route.v3.RouteMatch;
 import io.envoyproxy.envoy.config.route.v3.VirtualHost;
-import it.lorenzogiorgi.tesi.common.Configuration;
+import it.lorenzogiorgi.tesi.configuration.Configuration;
 
 import java.util.ArrayList;
 import java.util.List;

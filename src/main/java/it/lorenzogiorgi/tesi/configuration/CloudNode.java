@@ -1,7 +1,6 @@
-package it.lorenzogiorgi.tesi.common;
+package it.lorenzogiorgi.tesi.configuration;
 
 import it.lorenzogiorgi.tesi.Orchestrator;
-import it.lorenzogiorgi.tesi.dns.DNSManagement;
 
 public class CloudNode extends ComputeNode{
 

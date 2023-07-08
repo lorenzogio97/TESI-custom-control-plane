@@ -28,8 +28,8 @@ import io.grpc.ServerBuilder;
 import io.grpc.ServerCredentials;
 import io.grpc.TlsServerCredentials;
 import io.grpc.netty.NettyServerBuilder;
-import it.lorenzogiorgi.tesi.common.CloudNode;
-import it.lorenzogiorgi.tesi.common.Configuration;
+import it.lorenzogiorgi.tesi.configuration.CloudNode;
+import it.lorenzogiorgi.tesi.configuration.Configuration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 

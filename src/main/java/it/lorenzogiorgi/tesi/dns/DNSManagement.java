@@ -1,7 +1,7 @@
 package it.lorenzogiorgi.tesi.dns;
 
 import com.google.gson.Gson;
-import it.lorenzogiorgi.tesi.common.Configuration;
+import it.lorenzogiorgi.tesi.configuration.Configuration;
 import okhttp3.*;
 
 import java.io.IOException;

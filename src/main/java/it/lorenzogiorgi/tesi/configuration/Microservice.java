@@ -1,4 +1,4 @@
-package it.lorenzogiorgi.tesi.common;
+package it.lorenzogiorgi.tesi.configuration;
 
 public class Microservice {
     private String name;

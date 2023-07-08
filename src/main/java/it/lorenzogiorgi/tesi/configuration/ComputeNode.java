@@ -1,4 +1,4 @@
-package it.lorenzogiorgi.tesi.common;
+package it.lorenzogiorgi.tesi.configuration;
 
 import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.BuildImageResultCallback;

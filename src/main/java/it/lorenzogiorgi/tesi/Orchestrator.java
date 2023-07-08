@@ -2,7 +2,7 @@ package it.lorenzogiorgi.tesi;
 
 import com.google.gson.Gson;
 import it.lorenzogiorgi.tesi.api.*;
-import it.lorenzogiorgi.tesi.common.*;
+import it.lorenzogiorgi.tesi.configuration.*;
 import it.lorenzogiorgi.tesi.dns.DNSManagement;
 import it.lorenzogiorgi.tesi.envoy.EnvoyConfigurationServer;
 import it.lorenzogiorgi.tesi.utiliy.FileUtility;
@@ -174,6 +174,7 @@ public class Orchestrator {
 
         if (ttl_str.equals("no")) {
             Configuration.ENABLE_DNS = false;
+            logger.info("Platform disable DNS, Alt-Svc is used instead");
             return "";
         }
 
@@ -188,6 +189,7 @@ public class Orchestrator {
 
         Configuration.ENABLE_DNS = true;
         Configuration.DNS_USER_TTL = ttl;
+        logger.info("DNS migration enabled, DNS TTL="+ttl);
         return "";
 
     }
@@ -488,6 +490,13 @@ public class Orchestrator {
             response.header("Alt-Svc", "h2=\""+domainName+":443\";");
             response.cookie("." + Configuration.PLATFORM_DOMAIN, "/", "authID", user.getCookie(),
                     Configuration.CLIENT_SESSION_DURATION , false, false);
+
+            //TEST
+            if (Configuration.ENABLE_DNS) {
+                String userDomain = "lorenzo.user.lorenzogiorgi.com";
+                return gson.toJson(new LoginResponse(userDomain));
+            }
+
             return gson.toJson(new LoginResponse(Configuration.PLATFORM_CLOUD_DOMAIN));
         }
     }

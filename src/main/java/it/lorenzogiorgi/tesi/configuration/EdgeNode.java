@@ -1,4 +1,4 @@
-package it.lorenzogiorgi.tesi.common;
+package it.lorenzogiorgi.tesi.configuration;
 
 
 import com.github.dockerjava.api.DockerClient;
@@ -9,7 +9,6 @@ import com.github.dockerjava.api.model.Container;
 import com.github.dockerjava.api.model.HostConfig;
 import com.github.dockerjava.api.model.RestartPolicy;
 import it.lorenzogiorgi.tesi.Orchestrator;
-import it.lorenzogiorgi.tesi.dns.DNSManagement;
 import it.lorenzogiorgi.tesi.utiliy.TestUtility;
 
 import java.util.Collections;
