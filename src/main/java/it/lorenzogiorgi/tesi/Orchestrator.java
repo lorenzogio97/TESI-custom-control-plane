@@ -350,7 +350,7 @@ public class Orchestrator {
                 "              filename: /etc/ssl/certs/ca-certificates.crt";
     }
 
-    private static List<String> findNearestMECNode() {
+    private static List<String> findNearestEdgeNode() {
         List<String> mecNodes  = new ArrayList<>(Configuration.edgeNodes.keySet());
         Collections.shuffle(mecNodes);
         return mecNodes;
@@ -397,8 +397,8 @@ public class Orchestrator {
             //compute authId cookie
             String authId = TokenUtiliy.generateRandomHexString(Configuration.CLIENT_AUTHENTICATION_TOKEN_LENGTH);
 
-            //get nearest MECNode
-            List<String> nearestEdgeNodeIDs = findNearestMECNode();
+            //get nearest EdgeNode
+            List<String> nearestEdgeNodeIDs = findNearestEdgeNode();
 
             //resource allocation
             boolean allocated = false;
