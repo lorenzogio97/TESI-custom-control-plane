@@ -351,9 +351,9 @@ public class Orchestrator {
     }
 
     private static List<String> findNearestEdgeNode() {
-        List<String> mecNodes  = new ArrayList<>(Configuration.edgeNodes.keySet());
-        Collections.shuffle(mecNodes);
-        return mecNodes;
+        List<String> edgeNodes  = new ArrayList<>(Configuration.edgeNodes.keySet());
+        Collections.shuffle(edgeNodes);
+        return edgeNodes;
     }
 
 
