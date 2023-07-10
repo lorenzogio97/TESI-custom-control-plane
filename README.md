@@ -34,7 +34,7 @@ The configuration file is placed inside /configuration folder.
   "ORCHESTRATOR_API_PORT": (int) Port on which Orchestrator is listening
   "ORCHESTRATOR_API_IP": (str) IPv4 on which Orchestrator is listening
   "ORCHESTRATOR_USER_GARBAGE_DELAY": (int) Period of time between two user garbage collector execution
-  "PLATFORM_DOMAIN": (str) base domain related to the platform (e.g. example.com). It is used for DNS zone identification and virtual host setting inside Envot route configuration
+  "PLATFORM_DOMAIN": (str) base domain related to the platform (e.g. example.com). It is used for DNS zone identification and virtual host setting inside Envoy route configuration
   "PLATFORM_CLOUD_DOMAIN": (str) domain that is served to client to make requests (e.g. compute.example.com)
   "PLATFORM_ENVOY_CONF_SERVER_DOMAIN": (str) domain that points to Envoy gRPC configuratioj server
   "PLATFORM_ORCHESTRATOR_DOMAIN": (str) domain that points to Orchestrator API
