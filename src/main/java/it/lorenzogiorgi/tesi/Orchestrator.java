@@ -540,7 +540,9 @@ public class Orchestrator {
 
             //remove containers
             Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).deallocateUserResources(user.getUsername());
-
+            if (user.getFormerEdgeNodeId() != null) {
+                Configuration.edgeNodes.get(user.getFormerEdgeNodeId()).deallocateUserResources(user.getUsername());
+            }
             t3 = System.currentTimeMillis();
 
             //deleteAltSvrRedirect on cloud Envoy node
