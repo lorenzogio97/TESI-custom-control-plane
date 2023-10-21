@@ -70,10 +70,13 @@ public class Orchestrator {
 
         long t5 = System.currentTimeMillis();
 
-        if (Configuration.PERFORMANCE_TRACING)
-            TestUtility.writeExperimentData("startup", new String[]{String.valueOf(t1-t0),
-                    String.valueOf(t2-t1), String.valueOf(t3-t2), String.valueOf(t4-t3), String.valueOf(t5-t4)});
+        if (Configuration.PERFORMANCE_TRACING) {
+            TestUtility.writeExperimentData("startup", new String[]{String.valueOf(t1 - t0),
+                    String.valueOf(t2 - t1), String.valueOf(t3 - t2), String.valueOf(t4 - t3), String.valueOf(t5 - t4)});
 
+            // set TTL for bach DNS experiment
+            Spark.get("/dns/:ttl", (Orchestrator::setDNSTTL));
+        }
         /*
         System.out.println("Record DNS: " + (t1 - t0));
         System.out.println("xDS API: " + (t2 - t1));
@@ -81,8 +84,6 @@ public class Orchestrator {
         System.out.println("Node initialization: " + (t4 - t3));
         System.out.println("User REST API: " + (t5 - t4));
         */
-        // set TTL for bach DNS experiment
-        Spark.get("/dns/:ttl", (Orchestrator::setDNSTTL));
 
         envoyConfigurationServer.awaitTermination();
     }
