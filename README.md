@@ -121,3 +121,6 @@ while client's inside **resources/tls/envoy-mtls**, according to the file tree s
 TLS cert and key used during experiment were CA-signed certificate. In order to use this software, you have to provide 
 valid TLS resources for your domain (that you have configure into configuration file). Since a single cert/key is used for
 all subdomain, I suggest to use a wildcard certificate with all necessary Subject Alternative Name ([SAN](https://en.wikipedia.org/wiki/Subject_Alternative_Name))
+
+Orchestrator API are server using HTTPS. To make them work correctly, you need to create a valid keystone for your domain
+as reported [here](https://stackoverflow.com/questions/906402/how-to-import-an-existing-x-509-certificate-and-private-key-in-java-keystore-to).
