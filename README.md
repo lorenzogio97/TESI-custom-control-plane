@@ -4,7 +4,7 @@ This repository contains the code related to the Orchestrator for the edge platf
 This software is responsible for creating all software infrastructure for the edge platform at startup, receiving login/logout request from client and migration request from Mobility Management.
 All those requests triggers modification in resource allocated on Edge nodes, both in terms of Docker container executing client related application and Envoy rules installed on Edge Envoy proxies.
 
-**Note:** TLS/mTLS certificates and private keys not included for security reasons.
+**Note:** TLS/mTLS certificates and private keys not included for security reasons. See Security/TLS section.
 
 ---
 ## Run inside IDE
@@ -36,7 +36,7 @@ The configuration file is placed inside /configuration folder.
   "ORCHESTRATOR_USER_GARBAGE_DELAY": (int) Period of time between two user garbage collector execution
   "PLATFORM_DOMAIN": (str) base domain related to the platform (e.g. example.com). It is used for DNS zone identification and virtual host setting inside Envoy route configuration
   "PLATFORM_CLOUD_DOMAIN": (str) domain that is served to client to make requests (e.g. compute.example.com)
-  "PLATFORM_ENVOY_CONF_SERVER_DOMAIN": (str) domain that points to Envoy gRPC configuratioj server
+  "PLATFORM_ENVOY_CONF_SERVER_DOMAIN": (str) domain that points to Envoy gRPC configuration server
   "PLATFORM_ORCHESTRATOR_DOMAIN": (str) domain that points to Orchestrator API
   "PLATFORM_NODE_BASE_DOMAIN": (str) base domain to be used for each edge node (e.g. edge.example.com, so each edge will obtain a domain like edge1.edge.example.com, edge2.edge.example.com ecc.)
   "CLIENT_AUTHENTICATION_TOKEN_LENGTH": (int) byte length of the authentication token used by client to access the services
@@ -47,3 +47,77 @@ The configuration file is placed inside /configuration folder.
   "edgeNodes": (List<ComputeNode>) object that represents the list of envoy edge node 
   "applications": (List<Application>) object that represent the list of application that user can obtain (if configured) using the platform
 ```
+---
+
+## File tree
+```
+./src/main/
+├── java
+│   └── it
+│       └── lorenzogiorgi
+│           └── tesi
+│               ├── api
+│               │   ├── LoginRequest.java
+│               │   ├── LoginResponse.java
+│               │   ├── LogoutRequest.java
+│               │   ├── LogoutResponse.java
+│               │   └── MigrationRequest.java
+│               ├── configuration
+│               │   ├── Application.java
+│               │   ├── CloudNode.java
+│               │   ├── ComputeNode.java
+│               │   ├── Configuration.java
+│               │   ├── EdgeNode.java
+│               │   ├── Microservice.java
+│               │   ├── User.java
+│               │   └── UserStatus.java
+│               ├── dns
+│               │   ├── Comment.java
+│               │   ├── DNSManagement.java
+│               │   ├── Record.java
+│               │   ├── RRset.java
+│               │   └── Zone.java
+│               ├── envoy
+│               │   ├── EnvoyConfigurationServer.java
+│               │   └── SnapshotInstance.java
+│               ├── Orchestrator.java
+│               └── utiliy
+│                   ├── FileUtility.java
+│                   ├── TestUtility.java
+│                   └── TokenUtiliy.java
+└── resources
+    ├── docker-client-certificate
+    │   ├── ca.pem
+    │   ├── cert.pem
+    │   └── key.pem
+    ├── log4j2.xml  //log4j configuration file
+    ├── mTLS-Envoy //server side Envoy mTLS resources
+    │   ├── ca.crt
+    │   ├── servercert.pem
+    │   └── serverkey.pem
+    ├── server.keystore
+    └── tls //under this folder are stored all resources that are server to Envoy clients.  
+        ├── envoy-mtls //mTLS resources for Envoy client
+        │   ├── ca.crt
+        │   ├── clientcert.pem
+        │   └── clientkey.pem
+        └── platform-tls //TLS resources of the domain in use. See Security/TLS sections for more detail
+            ├── servercert.pem
+            └── serverkey.pem
+
+```
+
+---
+
+## Security/TLS
+Both Envoy and Docker uses mTLS to provide encryption and authentication.
+
+Docker server side cert/key must be manually installed on the target edge node, see [Protect Docker daemon socket](https://docs.docker.com/engine/security/protect-access/#use-tls-https-to-protect-the-docker-daemon-socket).
+Client cert/key must be placed inside **resouces/docker-client-certificate with names ca.pem, cert.pem, and key.pem**.
+
+Envoy server side mTLS resouces must be placed inside **resouces/mTLS-Envoy with names ca.pem, cert.pem, and key.pem**, 
+while client's inside **resources/tls/envoy-mtls**, according to the file tree structure. 
+
+TLS cert and key used during experiment were CA-signed certificate. In order to use this software, you have to provide 
+valid TLS resources for your domain (that you have configure into configuration file). Since a single cert/key is used for
+all subdomain, I suggest to use a wildcard certificate with all necessary Subject Alternative Name ([SAN](https://en.wikipedia.org/wiki/Subject_Alternative_Name))
