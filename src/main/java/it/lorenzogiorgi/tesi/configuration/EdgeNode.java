@@ -5,21 +5,31 @@ import com.github.dockerjava.api.DockerClient;
 import com.github.dockerjava.api.command.CreateContainerResponse;
 import com.github.dockerjava.api.command.InspectContainerResponse;
 import com.github.dockerjava.api.command.PullImageResultCallback;
+import com.github.dockerjava.api.model.Config;
 import com.github.dockerjava.api.model.Container;
 import com.github.dockerjava.api.model.HostConfig;
 import com.github.dockerjava.api.model.RestartPolicy;
 import it.lorenzogiorgi.tesi.Orchestrator;
 import it.lorenzogiorgi.tesi.utiliy.TestUtility;
 
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
+
+import static java.lang.Thread.sleep;
 
 public class EdgeNode extends ComputeNode{
 
     public void initialize() {
         cleanupContainer();
         boolean initialized = initializeFrontProxy();
+        try {
+            sleep(150);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+        initialized = initialized && allocateServices();
         cleanupDanglingImages();
 
         if(!initialized) {
@@ -32,6 +42,39 @@ public class EdgeNode extends ComputeNode{
 
     }
 
+    private boolean allocateServices() {
+        List<EdgeNode> nodes= new ArrayList<>(Configuration.edgeNodes.values());
+        List<Application> applicationList = new ArrayList<>(Configuration.applications.values());
+
+        for (EdgeNode node: nodes) {
+            DockerClient dockerClient = node.getDockerClient();
+            for (Application application : applicationList) {
+                for (Microservice microservice : application.getMicroservices()) {
+                    CreateContainerResponse container = null;
+                    try {
+                        container = dockerClient
+                                .createContainerCmd(microservice.getImageName() + ":" + microservice.getImageTag())
+                                .withName(microservice.getName())
+                                .withHostName(microservice.getName())
+                                .withHostConfig(HostConfig.newHostConfig()
+                                        .withDns(Configuration.DNS_API_IP)
+                                        .withRestartPolicy(RestartPolicy.unlessStoppedRestart())
+                                        .withCpuPeriod(100000L)
+                                        .withCpuQuota((long) (microservice.getMaxCPU() * 100000))
+                                        .withMemory((long) microservice.getMaxMemory() * 1000 * 1000))
+                                .exec();
+                        // start the container
+                        dockerClient.startContainerCmd(container.getId()).exec();
+                    } catch (Exception e) {
+                        logger.warn("Service containers preallocation failed on EdgeNode: " + id);
+                        cleanupContainer();
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
 
     public boolean allocateUserResources(String username, String authCookie, boolean migration)  {
         // Performance Evaluation
@@ -52,52 +95,18 @@ public class EdgeNode extends ComputeNode{
         DockerClient dockerClient = getDockerClient();
 
         t1 = System.currentTimeMillis();
-
-        logger.info("Pulling images on EdgeNode: "+ id + " for user: "+username);
-        //pull required images
-        for (Application application: applicationList) {
-            for (Microservice microservice : application.getMicroservices()) {
-                logger.trace("Pulling " + microservice.getImageName() + " on EdgeNode: "+ id +" for user: " + user.getUsername());
-                try {
-                    dockerClient.pullImageCmd(microservice.getImageName())
-                            .withTag(microservice.getImageTag())
-                            .exec(new PullImageResultCallback())
-                            .awaitCompletion();
-                } catch (Exception e) {
-                    logger.warn("Pulling images on EdgeNode: "+ id + " for user: "+username+ " failed. Cleanup.");
-                    cleanupDanglingImages();
-                    return false;
-                }
-            }
-        }
+        //pull image
 
         t2 = System.currentTimeMillis();
 
+        //container creation
         logger.info("Containers creation on EdgeNode: "+ id + " for user: "+username);
         //run containers with the options specified
         for (Application application: applicationList) {
             for (Microservice microservice : application.getMicroservices()) {
-                CreateContainerResponse container= null;
-                try {
-                    container = dockerClient
-                            .createContainerCmd(microservice.getImageName() + ":" + microservice.getImageTag())
-                            .withName(user.getUsername() + "-" + microservice.getName())
-                            .withHostName(user.getUsername() + "-" + microservice.getName())
-                            .withHostConfig(HostConfig.newHostConfig()
-                                    .withDns(Configuration.DNS_API_IP)
-                                    .withRestartPolicy(RestartPolicy.unlessStoppedRestart())
-                                    .withCpuPeriod(100000L)
-                                    .withCpuQuota((long) (microservice.getMaxCPU() * 100000))
-                                    .withMemory((long) microservice.getMaxMemory() * 1000 * 1000))
-                            .exec();
-                    // start the container
-                    dockerClient.startContainerCmd(container.getId()).exec();
-                } catch (Exception e) {
-                    logger.warn("Containers creation failed on EdgeNode: "+ id + " for user: "+username);
-                    deallocateUserResources(username);
-                    return false;
-                }
 
+                List<Container> containers = dockerClient.listContainersCmd().exec();
+                Container container= containers.stream().filter(c -> Arrays.stream(c.getNames()).anyMatch(n -> n.equals(microservice.getName()))).findFirst().get();
                 t3 = System.currentTimeMillis();
 
                 //get ip of the created container
