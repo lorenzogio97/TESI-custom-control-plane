@@ -48,7 +48,7 @@ public class EdgeNode extends ComputeNode{
                 .collect(Collectors.toList());
 
 
-        //connect to Docker demon on the target MECNode
+        //connect to Docker daemon on the target MECNode
         DockerClient dockerClient = getDockerClient();
 
         t1 = System.currentTimeMillis();
