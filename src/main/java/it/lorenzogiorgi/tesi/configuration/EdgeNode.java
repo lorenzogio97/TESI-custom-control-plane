@@ -24,11 +24,6 @@ public class EdgeNode extends ComputeNode{
     public void initialize() {
         cleanupContainer();
         boolean initialized = initializeFrontProxy();
-        try {
-            sleep(150);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
         initialized = initialized && allocateServices();
         cleanupDanglingImages();
 
@@ -43,33 +38,31 @@ public class EdgeNode extends ComputeNode{
     }
 
     private boolean allocateServices() {
-        List<EdgeNode> nodes= new ArrayList<>(Configuration.edgeNodes.values());
         List<Application> applicationList = new ArrayList<>(Configuration.applications.values());
 
-        for (EdgeNode node: nodes) {
-            DockerClient dockerClient = node.getDockerClient();
-            for (Application application : applicationList) {
-                for (Microservice microservice : application.getMicroservices()) {
-                    CreateContainerResponse container = null;
-                    try {
-                        container = dockerClient
-                                .createContainerCmd(microservice.getImageName() + ":" + microservice.getImageTag())
-                                .withName(microservice.getName())
-                                .withHostName(microservice.getName())
-                                .withHostConfig(HostConfig.newHostConfig()
-                                        .withDns(Configuration.DNS_API_IP)
-                                        .withRestartPolicy(RestartPolicy.unlessStoppedRestart())
-                                        .withCpuPeriod(100000L)
-                                        .withCpuQuota((long) (microservice.getMaxCPU() * 100000))
-                                        .withMemory((long) microservice.getMaxMemory() * 1000 * 1000))
-                                .exec();
-                        // start the container
-                        dockerClient.startContainerCmd(container.getId()).exec();
-                    } catch (Exception e) {
-                        logger.warn("Service containers preallocation failed on EdgeNode: " + id);
-                        cleanupContainer();
-                        return false;
-                    }
+        DockerClient dockerClient = this.getDockerClient();
+
+        for (Application application : applicationList) {
+            for (Microservice microservice : application.getMicroservices()) {
+                CreateContainerResponse container = null;
+                try {
+                    container = dockerClient
+                            .createContainerCmd(microservice.getImageName() + ":" + microservice.getImageTag())
+                            .withName(microservice.getName())
+                            .withHostName(microservice.getName())
+                            .withHostConfig(HostConfig.newHostConfig()
+                                    .withDns(Configuration.DNS_API_IP)
+                                    .withRestartPolicy(RestartPolicy.unlessStoppedRestart())
+                                    .withCpuPeriod(100000L)
+                                    .withCpuQuota((long) (microservice.getMaxCPU() * 100000))
+                                    .withMemory((long) microservice.getMaxMemory() * 1000 * 1000))
+                            .exec();
+                    // start the container
+                    dockerClient.startContainerCmd(container.getId()).exec();
+                } catch (Exception e) {
+                    logger.warn("Service containers preallocation failed on EdgeNode: " + id);
+                    cleanupContainer();
+                    return false;
                 }
             }
         }
