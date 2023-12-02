@@ -575,7 +575,7 @@ public class Orchestrator {
     }
 
     private static String migrate(Request request, Response response) {
-        // Performance Evaluationn
+        // Performance Evaluation
         long t0,t1,t2,t3;
         t0 = System.currentTimeMillis();
 
