@@ -172,7 +172,7 @@ public class Orchestrator {
             return "";
         }
 
-        Integer ttl = null;
+        Integer ttl;
         try {
             ttl = Integer.parseInt(ttl_str);
         } catch (Exception nfe) {
