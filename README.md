@@ -13,7 +13,7 @@ All those requests triggers modification in resource allocated on Edge nodes, bo
 - Run
 
 ## Run without ide
-- Create package file using maven package command (required Manven installed)
+- Create package file using "mvn package" command (required Maven installed)
 - Execute the generated JAR using `java -jar package.jar` (be careful to relative folder related to configuration and TLS/mTLS)
 
 --- 
