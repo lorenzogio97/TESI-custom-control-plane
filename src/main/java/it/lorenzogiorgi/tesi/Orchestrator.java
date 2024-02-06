@@ -77,13 +77,6 @@ public class Orchestrator {
             // set TTL for bach DNS experiment
             Spark.get("/dns/:ttl", (Orchestrator::setDNSTTL));
         }
-        /*
-        System.out.println("Record DNS: " + (t1 - t0));
-        System.out.println("xDS API: " + (t2 - t1));
-        System.out.println("Conf REST API: " + (t3 - t2));
-        System.out.println("Node initialization: " + (t4 - t3));
-        System.out.println("User REST API: " + (t5 - t4));
-        */
 
         envoyConfigurationServer.awaitTermination();
     }
