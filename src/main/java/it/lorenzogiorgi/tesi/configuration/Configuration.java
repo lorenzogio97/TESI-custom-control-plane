@@ -53,6 +53,7 @@ public class Configuration {
     public static String PLATFORM_ENVOY_CONF_SERVER_DOMAIN;
     public static String PLATFORM_ORCHESTRATOR_DOMAIN;
     public static String PLATFORM_NODE_BASE_DOMAIN;
+    public static String PLATFORM_USER_BASE_DOMAIN;
 
     /**
      * Security Token

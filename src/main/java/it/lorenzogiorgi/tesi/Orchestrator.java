@@ -154,8 +154,8 @@ public class Orchestrator {
         for(EdgeNode edgeNode: Configuration.edgeNodes.values()) {
             //update DNS entry for Edge Proxy
             String id = edgeNode.getId();
-            String proxyDomain = id +"."+Configuration.PLATFORM_NODE_BASE_DOMAIN;
-            if(DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, proxyDomain, "A",  3600, edgeNode.getIpAddress())) {
+            String edgeNodeDomain = id +"."+Configuration.PLATFORM_NODE_BASE_DOMAIN;
+            if(DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, edgeNodeDomain, "A",  3600, edgeNode.getIpAddress())) {
                 logger.info("DNS record for node "+ id + " added to DNS Server");
             } else {
                 logger.warn("Error during DNS record add/update for node "+ id);
@@ -424,9 +424,9 @@ public class Orchestrator {
 
             //TEST
             if (Configuration.ENABLE_DNS) {
-                String userDomain = "lorenzo.user.lorenzogiorgi.com";
+                String userDomain = user.getUsername()+"."+Configuration.PLATFORM_USER_BASE_DOMAIN;
                 String edgeIPAddress = Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).getIpAddress();
-                DNSManagement.updateDNSRecord("lorenzogiorgi.com", userDomain, "A", Configuration.DNS_USER_TTL, edgeIPAddress);
+                DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, userDomain, "A", Configuration.DNS_USER_TTL, edgeIPAddress);
             }
 
             t3 = System.currentTimeMillis();
@@ -443,7 +443,7 @@ public class Orchestrator {
 
             //TEST
             if (Configuration.ENABLE_DNS) {
-                String userDomain = "lorenzo.user.lorenzogiorgi.com";
+                String userDomain = user.getUsername()+"."+Configuration.PLATFORM_USER_BASE_DOMAIN;
                 return gson.toJson(new LoginResponse(userDomain));
             }
 
@@ -487,7 +487,7 @@ public class Orchestrator {
 
             //TEST
             if (Configuration.ENABLE_DNS) {
-                String userDomain = "lorenzo.user.lorenzogiorgi.com";
+                String userDomain = user.getUsername()+"."+Configuration.PLATFORM_USER_BASE_DOMAIN;
                 return gson.toJson(new LoginResponse(userDomain));
             }
 
@@ -557,8 +557,8 @@ public class Orchestrator {
                         String.valueOf(t2-t1), String.valueOf(t3-t2), String.valueOf(t4-t3), String.valueOf(t5-t4)});
 
             if (Configuration.ENABLE_DNS) {
-                String userDomain = "lorenzo.user.lorenzogiorgi.com";
-                DNSManagement.deleteDNSRecord("lorenzogiorgi.com", userDomain, "A");
+                String userDomain = user.getUsername()+"."+Configuration.PLATFORM_USER_BASE_DOMAIN;
+                DNSManagement.deleteDNSRecord(Configuration.PLATFORM_DOMAIN, userDomain, "A");
             }
 
             response.status(200);
@@ -622,9 +622,9 @@ public class Orchestrator {
 
                 //TEST
                 if (Configuration.ENABLE_DNS) {
-                    String userDomain = "lorenzo.user.lorenzogiorgi.com";
+                    String userDomain = user.getUsername()+"."+Configuration.PLATFORM_USER_BASE_DOMAIN;
                     String edgeIPAddress = Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).getIpAddress();
-                    DNSManagement.updateDNSRecord("lorenzogiorgi.com", userDomain, "A", Configuration.DNS_USER_TTL, edgeIPAddress);
+                    DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, userDomain, "A", Configuration.DNS_USER_TTL, edgeIPAddress);
                 }
 
             }
@@ -676,9 +676,9 @@ public class Orchestrator {
 
             //TEST
             if (Configuration.ENABLE_DNS) {
-                String userDomain = "lorenzo.user.lorenzogiorgi.com";
+                String userDomain = user.getUsername()+"."+Configuration.PLATFORM_USER_BASE_DOMAIN;
                 String edgeIPAddress = Configuration.edgeNodes.get(user.getCurrentEdgeNodeId()).getIpAddress();
-                DNSManagement.updateDNSRecord("lorenzogiorgi.com", userDomain, "A", Configuration.DNS_USER_TTL, edgeIPAddress);
+                DNSManagement.updateDNSRecord(Configuration.PLATFORM_DOMAIN, userDomain, "A", Configuration.DNS_USER_TTL, edgeIPAddress);
             }
 
             response.status(204);
