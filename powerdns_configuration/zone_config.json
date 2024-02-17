@@ -1,0 +1,109 @@
+GET /api/v1/servers/localhost/zones/lorenzogiorgi.com. HTTP/1.1
+X-API-Key: powerdns (to be set in both pdns.conf file and Orchestrator configuration file)
+
+{
+  "account": "",
+  "api_rectify": false,
+  "dnssec": false,
+  "edited_serial": 2023120724,
+  "id": "lorenzogiorgi.com.",
+  "kind": "Native",
+  "last_check": 0,
+  "master_tsig_key_ids": [],
+  "masters": [],
+  "name": "lorenzogiorgi.com.",
+  "notified_serial": 0,
+  "nsec3narrow": false,
+  "nsec3param": "",
+  "rrsets": [
+    {
+      "comments": [],
+      "name": "orchestrator.lorenzogiorgi.com.",
+      "records": [
+        {
+          "content": "172.16.2.121",
+          "disabled": false
+        }
+      ],
+      "ttl": 3600,
+      "type": "A"
+    },
+    {
+      "comments": [],
+      "name": "compute.lorenzogiorgi.com.",
+      "records": [
+        {
+          "content": "172.16.5.14",
+          "disabled": false
+        }
+      ],
+      "ttl": 3600,
+      "type": "A"
+    },
+    {
+      "comments": [],
+      "name": "envoy-controlplane.lorenzogiorgi.com.",
+      "records": [
+        {
+          "content": "172.16.2.121",
+          "disabled": false
+        }
+      ],
+      "ttl": 3600,
+      "type": "A"
+    },
+    {
+      "comments": [],
+      "name": "edge3.edge.lorenzogiorgi.com.",
+      "records": [
+        {
+          "content": "172.16.3.49",
+          "disabled": false
+        }
+      ],
+      "ttl": 3600,
+      "type": "A"
+    },
+    {
+      "comments": [],
+      "name": "edge2.edge.lorenzogiorgi.com.",
+      "records": [
+        {
+          "content": "172.16.4.66",
+          "disabled": false
+        }
+      ],
+      "ttl": 3600,
+      "type": "A"
+    },
+    {
+      "comments": [],
+      "name": "edge1.edge.lorenzogiorgi.com.",
+      "records": [
+        {
+          "content": "172.16.4.0",
+          "disabled": false
+        }
+      ],
+      "ttl": 3600,
+      "type": "A"
+    },
+    {
+      "comments": [],
+      "name": "lorenzogiorgi.com.",
+      "records": [
+        {
+          "content": "a.misconfigured.powerdns.server. hostmaster.lorenzogiorgi.com. 2023120724 10800 3600 604800 3600",
+          "disabled": false
+        }
+      ],
+      "ttl": 3600,
+      "type": "SOA"
+    }
+  ],
+  "serial": 2023120724,
+  "slave_tsig_key_ids": [],
+  "soa_edit": "",
+  "soa_edit_api": "DEFAULT",
+  "url": "/api/v1/servers/localhost/zones/lorenzogiorgi.com."
+}
