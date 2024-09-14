@@ -24,7 +24,7 @@ public class EdgeNode extends ComputeNode{
     public void initialize() {
         cleanupContainer();
         boolean initialized = initializeFrontProxy();
-        initialized = initialized && allocateServices();
+
         cleanupDanglingImages();
 
         if(!initialized) {
@@ -99,14 +99,15 @@ public class EdgeNode extends ComputeNode{
             for (Microservice microservice : application.getMicroservices()) {
 
                 List<Container> containers = dockerClient.listContainersCmd().exec();
-                Container container= containers.stream().filter(c -> Arrays.stream(c.getNames()).anyMatch(n -> n.equals("/"+microservice.getName()))).findFirst().get();
+                //Container container= containers.stream().filter(c -> Arrays.stream(c.getNames()).anyMatch(n -> n.equals("/"+microservice.getName()))).findFirst().get();
 
                 t3 = System.currentTimeMillis();
 
                 //get ip of the created container
-                InspectContainerResponse inspectContainerResponse = dockerClient.inspectContainerCmd(container.getId()).exec();
-                String ip = inspectContainerResponse.getNetworkSettings().getNetworks().get("bridge").getIpAddress();
+                //InspectContainerResponse inspectContainerResponse = dockerClient.inspectContainerCmd(container.getId()).exec();
+                //String ip = inspectContainerResponse.getNetworkSettings().getNetworks().get("bridge").getIpAddress();
 
+                String ip = "192.168.1.1";
                 t4 = System.currentTimeMillis();
 
                 //get Envoy front proxy ID
