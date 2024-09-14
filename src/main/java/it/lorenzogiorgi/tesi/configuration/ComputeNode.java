@@ -145,7 +145,7 @@ public abstract class ComputeNode {
         String tlsConfigurationUrl = "https://"+Configuration.PLATFORM_ORCHESTRATOR_DOMAIN+":"
                 +Configuration.ORCHESTRATOR_API_PORT;
         String dockerfileString =
-                "FROM envoyproxy/envoy-dev:latest\n" +
+                "FROM envoyproxy/envoy:v1.26-latest\n" +
                         "\n" +
                         "ENV DEBIAN_FRONTEND=noninteractive\n" +
                         "\n" +
