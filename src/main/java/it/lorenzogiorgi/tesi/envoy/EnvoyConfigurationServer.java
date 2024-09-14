@@ -53,9 +53,9 @@ public class EnvoyConfigurationServer {
 
 
         try {
-            File certChain= new File("./src/main/resources/mTLS-Envoy/servercert.pem");
-            File privateKey = new File("./src/main/resources/mTLS-Envoy/serverkey.pem");
-            File clientCAFile = new File("./src/main/resources/mTLS-Envoy/ca.crt");
+            File certChain= new File("./src/main/resources/mTLS-Envoy-server/servercert.pem");
+            File privateKey = new File("./src/main/resources/mTLS-Envoy-server/serverkey.pem");
+            File clientCAFile = new File("./src/main/resources/mTLS-Envoy-server/ca.crt");
 
             ServerCredentials creds = TlsServerCredentials.newBuilder()
                     .keyManager(certChain, privateKey)
