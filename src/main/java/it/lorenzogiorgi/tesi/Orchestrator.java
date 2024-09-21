@@ -77,6 +77,7 @@ public class Orchestrator {
 
         // set TTL for bach DNS experiment
         Spark.get("/dns/:ttl", (Orchestrator::setDNSTTL));
+        Spark.post("/test/tprop", TestUtility::tpropExperiment);
         /*
         System.out.println("Record DNS: " + (t1 - t0));
         System.out.println("xDS API: " + (t2 - t1));
@@ -678,7 +679,7 @@ public class Orchestrator {
 
             t3 = System.currentTimeMillis();
             if (Configuration.PERFORMANCE_TRACING)
-                TestUtility.writeExperimentData("migrate", new String[]{String.valueOf(t1-t0),
+                TestUtility.writeExperimentData("migrate-1000user", new String[]{String.valueOf(t1-t0),
                         String.valueOf(t2-t1), String.valueOf(t3-t2)});
 
             //TEST

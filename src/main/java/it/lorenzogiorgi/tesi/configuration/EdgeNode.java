@@ -133,7 +133,7 @@ public class EdgeNode extends ComputeNode{
 
         t6 = System.currentTimeMillis();
         if (Configuration.PERFORMANCE_TRACING)
-            TestUtility.writeExperimentData("allocateUserResource", new String[]{String.valueOf(t1-t0), String.valueOf(t2-t1),
+            TestUtility.writeExperimentData("allocateUserResource-1000users", new String[]{String.valueOf(t1-t0), String.valueOf(t2-t1),
                     String.valueOf(t3-t2), String.valueOf(t4-t3), String.valueOf(t5-t4), String.valueOf(t6-t5)});
 
 

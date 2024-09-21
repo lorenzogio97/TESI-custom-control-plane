@@ -30,6 +30,7 @@ import io.grpc.TlsServerCredentials;
 import io.grpc.netty.NettyServerBuilder;
 import it.lorenzogiorgi.tesi.configuration.CloudNode;
 import it.lorenzogiorgi.tesi.configuration.Configuration;
+import it.lorenzogiorgi.tesi.utiliy.TestUtility;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -351,6 +352,9 @@ public class EnvoyConfigurationServer {
 
         proxiesSnapshot.get(proxyId).addCluster(newCluster);
         updateProxyCacheSnapshot(proxyId);
+
+        //performance evaluation
+        TestUtility.tSnapshotUpdate = System.currentTimeMillis();
         logger.trace("addClusterToProxy: added Cluster at edge "+proxyId+" for user "+username+ ", clusterName:"+clusterName);
     }
 
