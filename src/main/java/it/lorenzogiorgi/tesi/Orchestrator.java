@@ -63,6 +63,8 @@ public class Orchestrator {
         Spark.post("/logout", (Orchestrator::logout));
         Spark.post("/migrate", (Orchestrator::migrate));
         Spark.post("/migration_feedback/:username/:edgeNodeId", (Orchestrator::finalizeMigration));
+        // set TTL for bach DNS experiment
+        Spark.get("/dns/:ttl", (Orchestrator::setDNSTTL));
 
         //schedule userGarbageCollector execution
         scheduler.scheduleWithFixedDelay(Orchestrator::userGarbageCollector, Configuration.CLIENT_SESSION_DURATION,
@@ -73,9 +75,6 @@ public class Orchestrator {
         if (Configuration.PERFORMANCE_TRACING) {
             TestUtility.writeExperimentData("startup", new String[]{String.valueOf(t1 - t0),
                     String.valueOf(t2 - t1), String.valueOf(t3 - t2), String.valueOf(t4 - t3), String.valueOf(t5 - t4)});
-
-            // set TTL for bach DNS experiment
-            Spark.get("/dns/:ttl", (Orchestrator::setDNSTTL));
         }
 
         envoyConfigurationServer.awaitTermination();
