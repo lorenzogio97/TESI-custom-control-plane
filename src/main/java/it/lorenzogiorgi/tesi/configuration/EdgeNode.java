@@ -24,7 +24,6 @@ public class EdgeNode extends ComputeNode{
     public void initialize() {
         cleanupContainer();
         boolean initialized = initializeFrontProxy();
-        initialized = initialized && allocateServices();
         cleanupDanglingImages();
 
         if(!initialized) {
@@ -98,15 +97,20 @@ public class EdgeNode extends ComputeNode{
         for (Application application: applicationList) {
             for (Microservice microservice : application.getMicroservices()) {
 
-                List<Container> containers = dockerClient.listContainersCmd().exec();
-                Container container= containers.stream().filter(c -> Arrays.stream(c.getNames()).anyMatch(n -> n.equals("/"+microservice.getName()))).findFirst().get();
+                // implement logic 1/10 assuming username are numbered for testing.
+                // parsing username to get the number
+                int userInt = Integer.parseInt(username);
+                // integer division to get container number
+                int containerNumber = userInt /10;
+
+                //ist<Container> containers = dockerClient.listContainersCmd().exec();
+                //Container container= containers.stream().filter(c -> Arrays.stream(c.getNames()).anyMatch(n -> n.equals("/"+microservice.getName()+"-"+ containerNumber))).findFirst().get();
 
                 t3 = System.currentTimeMillis();
 
                 //get ip of the created container
-                InspectContainerResponse inspectContainerResponse = dockerClient.inspectContainerCmd(container.getId()).exec();
-                String ip = inspectContainerResponse.getNetworkSettings().getNetworks().get("bridge").getIpAddress();
-
+                String ip = "172.16.5.110";
+                int microservicePort = 20000 + containerNumber;
                 t4 = System.currentTimeMillis();
 
                 //get Envoy front proxy ID
@@ -116,7 +120,7 @@ public class EdgeNode extends ComputeNode{
                 String endpoint = "/"+application.getName()+"/"+microservice.getName();
 
                 //set envoy clusters and routes
-                Orchestrator.envoyConfigurationServer.addClusterToProxy(proxyID, user.getUsername(), microservice.getName(), ip, microservice.getExposedPort());
+                Orchestrator.envoyConfigurationServer.addClusterToProxy(proxyID, user.getUsername(), microservice.getName(), ip, microservicePort);
 
                 t5 = System.currentTimeMillis();
 
