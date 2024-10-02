@@ -30,16 +30,6 @@
       "id": "edge1",
       "ipAddress": "172.16.4.0",
       "dockerPort": 2376
-    },
-    "edge2": {
-      "id": "edge2",
-      "ipAddress": "172.16.4.66",
-      "dockerPort": 2376
-    },
-    "edge3": {
-      "id": "edge3",
-      "ipAddress": "172.16.3.49",
-      "dockerPort": 2376
     }
   },
   "applications": {

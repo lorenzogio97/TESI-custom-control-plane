@@ -32,9 +32,11 @@ import it.lorenzogiorgi.tesi.configuration.CloudNode;
 import it.lorenzogiorgi.tesi.configuration.Configuration;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.checkerframework.checker.units.qual.A;
 
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
@@ -352,6 +354,40 @@ public class EnvoyConfigurationServer {
         proxiesSnapshot.get(proxyId).addCluster(newCluster);
         updateProxyCacheSnapshot(proxyId);
         logger.trace("addClusterToProxy: added Cluster at edge "+proxyId+" for user "+username+ ", clusterName:"+clusterName);
+    }
+
+    public void addClusterToProxyMultipleEndpoint(String proxyId, String clusterName, int quantity) {
+        ArrayList<LbEndpoint> endpointList = new ArrayList<>();
+        for(int i=0; i<quantity; i++) {
+            LbEndpoint endpoint = LbEndpoint.newBuilder()
+                    .setEndpoint(
+                            Endpoint.newBuilder()
+                                    .setAddress(
+                                            Address.newBuilder()
+                                                    .setSocketAddress(
+                                                            SocketAddress.newBuilder()
+                                                                    .setAddress("172.16.5.110")
+                                                                    .setPortValue(20000+i)
+                                                                    .setProtocolValue(SocketAddress.Protocol.TCP_VALUE)))).build();
+            endpointList.add(endpoint);
+        }
+
+        Cluster newCluster =  Cluster.newBuilder()
+                .setName(clusterName)
+                .setConnectTimeout(Durations.fromSeconds(5))
+                .setType(Cluster.DiscoveryType.STRICT_DNS)
+                .setLbPolicy(Cluster.LbPolicy.ROUND_ROBIN)
+                .setLoadAssignment(
+                        ClusterLoadAssignment.newBuilder()
+                                .setClusterName(clusterName)
+                                .addEndpoints(
+                                        LocalityLbEndpoints.newBuilder()
+                                                .addAllLbEndpoints(endpointList)))
+                .build();
+
+        proxiesSnapshot.get(proxyId).addCluster(newCluster);
+        updateProxyCacheSnapshot(proxyId);
+        logger.trace("addClusterToProxyMultipleEndpoint: added Cluster at edge "+proxyId+" for "+quantity+ " users, clusterName:"+clusterName);
     }
 
     public void convertRouteToMigratingByUserFromProxy(String username, String sourceProxyId, String destinationProxyId) {

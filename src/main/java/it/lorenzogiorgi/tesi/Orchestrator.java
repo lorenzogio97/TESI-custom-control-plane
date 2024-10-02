@@ -77,6 +77,7 @@ public class Orchestrator {
 
         // set TTL for bach DNS experiment
         Spark.get("/dns/:ttl", (Orchestrator::setDNSTTL));
+        Spark.get("/endpoints/:quantity", (Orchestrator::setClusterEndpointQuantity));
         /*
         System.out.println("Record DNS: " + (t1 - t0));
         System.out.println("xDS API: " + (t2 - t1));
@@ -192,7 +193,22 @@ public class Orchestrator {
         Configuration.DNS_USER_TTL = ttl;
         logger.info("DNS migration enabled, DNS TTL="+ttl);
         return "";
+    }
 
+    private static String setClusterEndpointQuantity(Request request, Response response) {
+        String quantity_str = request.params(":quantity");
+
+        Integer quantity = null;
+        try {
+            quantity = Integer.parseInt(quantity_str);
+        } catch (Exception nfe) {
+            nfe.printStackTrace();
+            response.status(500);
+            return "";
+        }
+        quantity= (int)Math.ceil((double) quantity /10);
+        envoyConfigurationServer.addClusterToProxyMultipleEndpoint("edge1", "containers", quantity);
+        return "";
     }
 
     private static String serveEnvoymTls(Request request, Response response) {
@@ -402,10 +418,10 @@ public class Orchestrator {
             List<String> nearestEdgeNodeIDs = findNearestEdgeNode();
 
             //resource allocation
-            boolean allocated = false;
+            boolean allocated = true;
             for (String edgeId : nearestEdgeNodeIDs) {
                 EdgeNode edgeNode = Configuration.edgeNodes.get(edgeId);
-                allocated = edgeNode.allocateUserResources(user.getUsername(), authId, false);
+                //allocated = edgeNode.allocateUserResources(user.getUsername(), authId, false);
                 if (allocated) {
                     //set EdgeNodeId, and session expiration in User data structure
                     user.setCurrentEdgeNodeId(edgeId);

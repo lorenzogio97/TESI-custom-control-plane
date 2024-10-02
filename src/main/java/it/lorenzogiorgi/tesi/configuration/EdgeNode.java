@@ -10,6 +10,7 @@ import com.github.dockerjava.api.model.Container;
 import com.github.dockerjava.api.model.HostConfig;
 import com.github.dockerjava.api.model.RestartPolicy;
 import it.lorenzogiorgi.tesi.Orchestrator;
+import it.lorenzogiorgi.tesi.envoy.EnvoyConfigurationServer;
 import it.lorenzogiorgi.tesi.utiliy.TestUtility;
 
 import java.util.*;
@@ -23,7 +24,7 @@ public class EdgeNode extends ComputeNode{
 
     public void initialize() {
         cleanupContainer();
-        boolean initialized = initializeFrontProxy();
+        boolean initialized = initializeFrontProxy() &&  allocateRule();
         cleanupDanglingImages();
 
         if(!initialized) {
@@ -36,35 +37,9 @@ public class EdgeNode extends ComputeNode{
 
     }
 
-    private boolean allocateServices() {
-        List<Application> applicationList = new ArrayList<>(Configuration.applications.values());
-
-        DockerClient dockerClient = this.getDockerClient();
-
-        for (Application application : applicationList) {
-            for (Microservice microservice : application.getMicroservices()) {
-                CreateContainerResponse container = null;
-                try {
-                    container = dockerClient
-                            .createContainerCmd(microservice.getImageName() + ":" + microservice.getImageTag())
-                            .withName(microservice.getName())
-                            .withHostName(microservice.getName())
-                            .withHostConfig(HostConfig.newHostConfig()
-                                    .withDns(Configuration.DNS_API_IP)
-                                    .withRestartPolicy(RestartPolicy.unlessStoppedRestart())
-                                    .withCpuPeriod(100000L)
-                                    .withCpuQuota((long) (microservice.getMaxCPU() * 100000))
-                                    .withMemory((long) microservice.getMaxMemory() * 1000 * 1000))
-                            .exec();
-                    // start the container
-                    dockerClient.startContainerCmd(container.getId()).exec();
-                } catch (Exception e) {
-                    logger.warn("Service containers preallocation failed on EdgeNode: " + id);
-                    cleanupContainer();
-                    return false;
-                }
-            }
-        }
+    private boolean allocateRule() {
+        Orchestrator.envoyConfigurationServer.addPublicRouteToProxy("edge1", "/echo/echo", "containers");
+        Orchestrator.envoyConfigurationServer.addClusterToProxyMultipleEndpoint("edge1", "containers", 1);
         return true;
     }
 
